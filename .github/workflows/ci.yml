@@ -28,5 +28,5 @@ jobs:
 
       - name: Run Tests
         run: |
-          # We'll create the tests folder next
+          export PYTHONPATH=$PYTHONPATH:$(pwd)
           pytest
