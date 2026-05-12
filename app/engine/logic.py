@@ -7,7 +7,7 @@ load_dotenv()
 
 client = OpenAI(
     base_url="https://models.inference.ai.azure.com",
-    api_key=os.getenv("MODEL_TOKEN"),
+    api_key=os.getenv("MODEL_TOKEN") or "not-configured",
 )
 
 def evaluate_cv(cv_text: str, job_description: str):
