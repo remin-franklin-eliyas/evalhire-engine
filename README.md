@@ -48,7 +48,7 @@ Open in VS Code → "Reopen in Container". Dependencies install automatically, p
 
 ## API Reference
 
-### `GET /`
+### `GET /health`
 
 Health check.
 
@@ -59,6 +59,12 @@ Health check.
   "engine": "EvalHire v1.0"
 }
 ```
+
+---
+
+### `GET /`
+
+Serves the browser UI (`app/static/index.html`).
 
 ---
 
@@ -160,9 +166,10 @@ Results are always sorted descending by score. Non-PDF files or files that fail 
 
 ## Environment variables
 
-| Variable      | Required | Description                                        |
-|---------------|----------|----------------------------------------------------|
-| `MODEL_TOKEN` | Yes      | API key for GitHub Models (or any OpenAI-spec provider) || `API_KEY`     | No       | Key callers must send in `X-API-Key` header. Leave unset to disable auth (dev mode) |
+| Variable      | Required | Description                                             |
+|---------------|----------|---------------------------------------------------------|
+| `MODEL_TOKEN` | Yes      | API key for GitHub Models (or any OpenAI-spec provider) |
+| `API_KEY`     | No       | Key callers must send in `X-API-Key` header. Leave unset to disable auth (dev mode) |
 > In CI, `MODEL_TOKEN` is injected from a GitHub Actions repository secret. Never commit `.env`.
 
 ---
@@ -178,14 +185,15 @@ pytest
 
 ## Tech stack
 
-| Layer       | Tech                              |
-|-------------|-----------------------------------|
-| API         | FastAPI 0.110 + uvicorn           |
-| PDF parsing | pdfplumber 0.11                   |
-| LLM         | Llama 3 70B via GitHub Models     |
-| LLM client  | OpenAI Python SDK 1.12 (OpenAI-spec) |
+| Layer       | Tech                                          |
+|-------------|-----------------------------------------------|
+| Frontend    | Plain HTML/CSS/JS served by FastAPI           |
+| API         | FastAPI 0.110 + uvicorn                       |
+| PDF parsing | pdfplumber 0.11                               |
+| LLM         | Llama 3.3 70B via GitHub Models               |
+| LLM client  | OpenAI Python SDK 1.12 (OpenAI-spec)          |
 | CI          | GitHub Actions — runs pytest on every push/PR |
-| Dev env     | VS Code Dev Container (Python 3.10) |
+| Dev env     | VS Code Dev Container (Python 3.10)           |
 
 ---
 
@@ -194,10 +202,14 @@ pytest
 ```
 app/
 ├── main.py           # FastAPI routes
+├── auth.py           # X-API-Key authentication
+├── models.py         # Pydantic request/response schemas
 ├── engine/
 │   └── logic.py      # LLM evaluation logic
-└── utils/
-    └── extractor.py  # PDF → text
+├── utils/
+│   └── extractor.py  # PDF → text
+└── static/
+    └── index.html    # Browser UI
 tests/
 └── test_main.py
 .github/workflows/
