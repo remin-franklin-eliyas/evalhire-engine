@@ -1,3 +1,14 @@
+from fastapi import FastAPI, UploadFile, File, Form, HTTPException
+from app.utils.extractor import extract_text_from_pdf
+from app.engine.logic import evaluate_cv
+import io
+
+app = FastAPI(title="EvalHire Engine")
+
+@app.get("/")
+def health_check():
+    return {"status": "active", "engine": "EvalHire v1.0"}
+
 @app.post("/evaluate")
 async def evaluate_candidate(
     file: UploadFile = File(...), 
