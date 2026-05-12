@@ -36,7 +36,9 @@ uvicorn app.main:app --reload
 
 The API will be running at `http://localhost:8000`.
 
-Interactive docs: `http://localhost:8000/docs`
+**Frontend UI:** `http://localhost:8000` — open in your browser to upload CVs and see results without curl.
+
+Interactive API docs: `http://localhost:8000/docs`
 
 ### Dev Container (recommended)
 

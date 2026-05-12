@@ -1,0 +1,415 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>EvalHire Engine</title>
+  <style>
+    *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+
+    body {
+      font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif;
+      background: #0d0d0d;
+      color: #e8e8e8;
+      min-height: 100vh;
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+      padding: 48px 16px;
+    }
+
+    header {
+      text-align: center;
+      margin-bottom: 40px;
+    }
+    header h1 { font-size: 2rem; font-weight: 700; letter-spacing: -0.5px; }
+    header p  { color: #888; margin-top: 8px; font-size: 0.95rem; }
+
+    .card {
+      background: #161616;
+      border: 1px solid #2a2a2a;
+      border-radius: 12px;
+      padding: 32px;
+      width: 100%;
+      max-width: 680px;
+    }
+
+    .tabs {
+      display: flex;
+      gap: 4px;
+      margin-bottom: 28px;
+      background: #0d0d0d;
+      border-radius: 8px;
+      padding: 4px;
+    }
+    .tab {
+      flex: 1;
+      padding: 8px;
+      border: none;
+      border-radius: 6px;
+      background: transparent;
+      color: #888;
+      cursor: pointer;
+      font-size: 0.9rem;
+      transition: background 0.15s, color 0.15s;
+    }
+    .tab.active { background: #1f1f1f; color: #fff; }
+
+    label { display: block; font-size: 0.85rem; color: #aaa; margin-bottom: 6px; }
+
+    .field { margin-bottom: 18px; }
+
+    textarea, input[type="text"], input[type="password"] {
+      width: 100%;
+      background: #0d0d0d;
+      border: 1px solid #2a2a2a;
+      border-radius: 8px;
+      color: #e8e8e8;
+      font-size: 0.9rem;
+      padding: 10px 12px;
+      outline: none;
+      transition: border-color 0.15s;
+      resize: vertical;
+    }
+    textarea:focus, input:focus { border-color: #444; }
+    textarea { min-height: 100px; font-family: inherit; }
+
+    .file-drop {
+      border: 2px dashed #2a2a2a;
+      border-radius: 8px;
+      padding: 24px;
+      text-align: center;
+      cursor: pointer;
+      transition: border-color 0.15s, background 0.15s;
+    }
+    .file-drop:hover, .file-drop.over { border-color: #555; background: #1a1a1a; }
+    .file-drop p { color: #666; font-size: 0.85rem; margin-top: 6px; }
+    .file-drop .icon { font-size: 1.6rem; }
+    #file-name, #batch-file-names { font-size: 0.82rem; color: #888; margin-top: 8px; }
+
+    button[type="submit"] {
+      width: 100%;
+      padding: 12px;
+      background: #fff;
+      color: #000;
+      border: none;
+      border-radius: 8px;
+      font-size: 0.95rem;
+      font-weight: 600;
+      cursor: pointer;
+      transition: opacity 0.15s;
+    }
+    button[type="submit"]:hover { opacity: 0.88; }
+    button[type="submit"]:disabled { opacity: 0.4; cursor: not-allowed; }
+
+    .spinner {
+      display: none;
+      text-align: center;
+      padding: 24px 0;
+      color: #666;
+      font-size: 0.9rem;
+    }
+
+    #result, #batch-result { margin-top: 28px; }
+
+    .score-ring {
+      width: 96px; height: 96px;
+      border-radius: 50%;
+      display: flex; align-items: center; justify-content: center;
+      font-size: 1.6rem; font-weight: 700;
+      margin: 0 auto 20px;
+    }
+    .score-high   { background: #0f2e1a; color: #4ade80; border: 2px solid #166534; }
+    .score-mid    { background: #2e2300; color: #fbbf24; border: 2px solid #854d0e; }
+    .score-low    { background: #2e0f0f; color: #f87171; border: 2px solid #7f1d1d; }
+
+    .verdict {
+      text-align: center;
+      font-size: 1rem;
+      color: #ccc;
+      margin-bottom: 20px;
+      line-height: 1.5;
+    }
+
+    .critique-list { list-style: none; display: flex; flex-direction: column; gap: 10px; }
+    .critique-list li {
+      background: #1a1a1a;
+      border-left: 3px solid #333;
+      padding: 10px 14px;
+      border-radius: 0 6px 6px 0;
+      font-size: 0.88rem;
+      color: #bbb;
+      line-height: 1.5;
+    }
+
+    /* Batch results */
+    .batch-row {
+      display: flex;
+      align-items: center;
+      gap: 14px;
+      padding: 12px 14px;
+      border-radius: 8px;
+      background: #1a1a1a;
+      margin-bottom: 10px;
+    }
+    .batch-score {
+      min-width: 44px; height: 44px;
+      border-radius: 50%;
+      display: flex; align-items: center; justify-content: center;
+      font-weight: 700; font-size: 0.9rem;
+    }
+    .batch-info { flex: 1; }
+    .batch-filename { font-size: 0.88rem; font-weight: 600; color: #e8e8e8; }
+    .batch-verdict  { font-size: 0.8rem; color: #888; margin-top: 3px; line-height: 1.4; }
+    .batch-error    { font-size: 0.8rem; color: #f87171; margin-top: 3px; }
+
+    .error-box {
+      background: #1f0f0f;
+      border: 1px solid #7f1d1d;
+      border-radius: 8px;
+      padding: 14px;
+      color: #f87171;
+      font-size: 0.88rem;
+    }
+
+    #panel-single, #panel-batch { display: none; }
+    #panel-single.active, #panel-batch.active { display: block; }
+
+    .settings-toggle {
+      font-size: 0.8rem;
+      color: #555;
+      cursor: pointer;
+      margin-bottom: 18px;
+      display: inline-block;
+    }
+    .settings-toggle:hover { color: #888; }
+    #settings-panel { display: none; margin-bottom: 18px; }
+    #settings-panel.open { display: block; }
+  </style>
+</head>
+<body>
+
+<header>
+  <h1>EvalHire Engine</h1>
+  <p>AI-powered CV screening — evaluated like a Founding CTO</p>
+</header>
+
+<div class="card">
+
+  <div class="tabs">
+    <button class="tab active" onclick="switchTab('single')">Single CV</button>
+    <button class="tab"        onclick="switchTab('batch')">Batch</button>
+  </div>
+
+  <!-- ── Settings ───────────────────────────────────────────── -->
+  <span class="settings-toggle" onclick="toggleSettings()">⚙ API settings</span>
+  <div id="settings-panel">
+    <div class="field">
+      <label for="api-key">X-API-Key <span style="color:#555">(leave blank if auth is disabled)</span></label>
+      <input type="password" id="api-key" placeholder="your_api_key_here" />
+    </div>
+    <div class="field">
+      <label for="api-url">API base URL</label>
+      <input type="text" id="api-url" value="" placeholder="auto (same origin)" />
+    </div>
+  </div>
+
+  <!-- ── Single ─────────────────────────────────────────────── -->
+  <div id="panel-single" class="active">
+    <form id="form-single">
+      <div class="field">
+        <label>CV (PDF)</label>
+        <div class="file-drop" id="drop-single" onclick="document.getElementById('file-single').click()">
+          <div class="icon">📄</div>
+          <strong>Click or drag a PDF here</strong>
+          <p>Max 10 MB</p>
+          <input type="file" id="file-single" accept=".pdf" style="display:none" />
+        </div>
+        <div id="file-name">No file selected</div>
+      </div>
+      <div class="field">
+        <label for="jd-single">Job Description</label>
+        <textarea id="jd-single" placeholder="Paste the full job description here…"></textarea>
+      </div>
+      <button type="submit" id="btn-single">Evaluate</button>
+    </form>
+    <div class="spinner" id="spinner-single">Evaluating… this takes a few seconds</div>
+    <div id="result"></div>
+  </div>
+
+  <!-- ── Batch ──────────────────────────────────────────────── -->
+  <div id="panel-batch">
+    <form id="form-batch">
+      <div class="field">
+        <label>CV PDFs (select multiple)</label>
+        <div class="file-drop" id="drop-batch" onclick="document.getElementById('file-batch').click()">
+          <div class="icon">📂</div>
+          <strong>Click or drag PDFs here</strong>
+          <p>Multiple files supported · Max 10 MB each</p>
+          <input type="file" id="file-batch" accept=".pdf" multiple style="display:none" />
+        </div>
+        <div id="batch-file-names">No files selected</div>
+      </div>
+      <div class="field">
+        <label for="jd-batch">Job Description</label>
+        <textarea id="jd-batch" placeholder="Paste the full job description here…"></textarea>
+      </div>
+      <button type="submit" id="btn-batch">Evaluate All</button>
+    </form>
+    <div class="spinner" id="spinner-batch">Evaluating… this may take a moment for multiple CVs</div>
+    <div id="batch-result"></div>
+  </div>
+
+</div>
+
+<script>
+  // ── Tab switching ──────────────────────────────────────────
+  function switchTab(name) {
+    document.querySelectorAll('.tab').forEach((t, i) => t.classList.toggle('active', (i === 0) === (name === 'single')));
+    document.getElementById('panel-single').classList.toggle('active', name === 'single');
+    document.getElementById('panel-batch').classList.toggle('active', name === 'batch');
+  }
+
+  function toggleSettings() {
+    document.getElementById('settings-panel').classList.toggle('open');
+  }
+
+  // ── File input labels ──────────────────────────────────────
+  document.getElementById('file-single').addEventListener('change', e => {
+    document.getElementById('file-name').textContent = e.target.files[0]?.name ?? 'No file selected';
+  });
+  document.getElementById('file-batch').addEventListener('change', e => {
+    const names = Array.from(e.target.files).map(f => f.name).join(', ');
+    document.getElementById('batch-file-names').textContent = names || 'No files selected';
+  });
+
+  // ── Drag-and-drop ──────────────────────────────────────────
+  function setupDrop(dropId, inputId, labelId, multi) {
+    const drop = document.getElementById(dropId);
+    drop.addEventListener('dragover', e => { e.preventDefault(); drop.classList.add('over'); });
+    drop.addEventListener('dragleave', ()  => drop.classList.remove('over'));
+    drop.addEventListener('drop', e => {
+      e.preventDefault();
+      drop.classList.remove('over');
+      const input = document.getElementById(inputId);
+      input.files = e.dataTransfer.files;
+      input.dispatchEvent(new Event('change'));
+    });
+  }
+  setupDrop('drop-single', 'file-single', 'file-name', false);
+  setupDrop('drop-batch',  'file-batch',  'batch-file-names', true);
+
+  // ── Helpers ────────────────────────────────────────────────
+  function getHeaders() {
+    const key = document.getElementById('api-key').value.trim();
+    return key ? { 'X-API-Key': key } : {};
+  }
+  function getBase() {
+    const val = document.getElementById('api-url').value.trim();
+    return val ? val.replace(/\/$/, '') : window.location.origin;
+  }
+
+  function scoreClass(n) {
+    if (n >= 70) return 'score-high';
+    if (n >= 45) return 'score-mid';
+    return 'score-low';
+  }
+
+  function renderError(msg, container) {
+    container.innerHTML = `<div class="error-box">⚠ ${msg}</div>`;
+  }
+
+  function renderSingle(data, container) {
+    const a = data.data.analysis;
+    const cls = scoreClass(a.score);
+    const critiques = a.critique.map(c => `<li>${c}</li>`).join('');
+    container.innerHTML = `
+      <div class="score-ring ${cls}">${a.score}</div>
+      <div class="verdict">${a.verdict}</div>
+      <ul class="critique-list">${critiques}</ul>
+    `;
+  }
+
+  function renderBatch(data, container) {
+    if (!data.results.length) { container.innerHTML = '<p style="color:#666">No results.</p>'; return; }
+    container.innerHTML = data.results.map((r, i) => {
+      const cls = scoreClass(r.score);
+      const badge = r.error
+        ? `<div class="batch-score" style="background:#2e0f0f;color:#f87171;border:2px solid #7f1d1d">!</div>`
+        : `<div class="batch-score ${cls}">${r.score}</div>`;
+      const detail = r.error
+        ? `<div class="batch-error">${r.error}</div>`
+        : `<div class="batch-verdict">${r.verdict}</div>`;
+      return `
+        <div class="batch-row">
+          ${badge}
+          <div class="batch-info">
+            <div class="batch-filename">#${i+1} ${r.filename}</div>
+            ${detail}
+          </div>
+        </div>`;
+    }).join('');
+  }
+
+  // ── Single form ────────────────────────────────────────────
+  document.getElementById('form-single').addEventListener('submit', async e => {
+    e.preventDefault();
+    const file = document.getElementById('file-single').files[0];
+    const jd   = document.getElementById('jd-single').value.trim();
+    const result = document.getElementById('result');
+
+    if (!file) { renderError('Please select a PDF file.', result); return; }
+    if (!jd)   { renderError('Please enter a job description.', result); return; }
+
+    const btn = document.getElementById('btn-single');
+    const spinner = document.getElementById('spinner-single');
+    btn.disabled = true; spinner.style.display = 'block'; result.innerHTML = '';
+
+    const fd = new FormData();
+    fd.append('file', file);
+    fd.append('jd', jd);
+
+    try {
+      const res = await fetch(`${getBase()}/evaluate`, { method: 'POST', headers: getHeaders(), body: fd });
+      const json = await res.json();
+      if (!res.ok) renderError(json.detail ?? `Error ${res.status}`, result);
+      else renderSingle(json, result);
+    } catch (err) {
+      renderError(`Network error: ${err.message}`, result);
+    } finally {
+      btn.disabled = false; spinner.style.display = 'none';
+    }
+  });
+
+  // ── Batch form ─────────────────────────────────────────────
+  document.getElementById('form-batch').addEventListener('submit', async e => {
+    e.preventDefault();
+    const files = document.getElementById('file-batch').files;
+    const jd    = document.getElementById('jd-batch').value.trim();
+    const result = document.getElementById('batch-result');
+
+    if (!files.length) { renderError('Please select at least one PDF.', result); return; }
+    if (!jd)           { renderError('Please enter a job description.', result); return; }
+
+    const btn = document.getElementById('btn-batch');
+    const spinner = document.getElementById('spinner-batch');
+    btn.disabled = true; spinner.style.display = 'block'; result.innerHTML = '';
+
+    const fd = new FormData();
+    Array.from(files).forEach(f => fd.append('files', f));
+    fd.append('jd', jd);
+
+    try {
+      const res = await fetch(`${getBase()}/evaluate/batch`, { method: 'POST', headers: getHeaders(), body: fd });
+      const json = await res.json();
+      if (!res.ok) renderError(json.detail ?? `Error ${res.status}`, result);
+      else renderBatch(json, result);
+    } catch (err) {
+      renderError(`Network error: ${err.message}`, result);
+    } finally {
+      btn.disabled = false; spinner.style.display = 'none';
+    }
+  });
+</script>
+</body>
+</html>

@@ -1,11 +1,14 @@
 from fastapi import FastAPI, UploadFile, File, Form, HTTPException, Depends
 from fastapi.middleware.cors import CORSMiddleware
+from fastapi.staticfiles import StaticFiles
+from fastapi.responses import FileResponse
 from app.utils.extractor import extract_text_from_pdf
 from app.engine.logic import evaluate_cv
 from app.models import EvaluationResult, EvaluationData, EvaluationResponse, BatchResultItem, BatchResponse
 from app.auth import verify_api_key
 from typing import List
 import io
+import os
 
 MAX_UPLOAD_BYTES = 10 * 1024 * 1024  # 10 MB
 
@@ -18,8 +21,16 @@ app.add_middleware(
     allow_headers=["*"],
 )
 
+_static_dir = os.path.join(os.path.dirname(__file__), "static")
+app.mount("/static", StaticFiles(directory=_static_dir), name="static")
 
-@app.get("/")
+
+@app.get("/", response_class=FileResponse)
+def index():
+    return FileResponse(os.path.join(_static_dir, "index.html"))
+
+
+@app.get("/health")
 def health_check():
     return {"status": "active", "engine": "EvalHire v1.0"}
 

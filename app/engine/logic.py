@@ -33,12 +33,21 @@ def evaluate_cv(cv_text: str, job_description: str) -> dict:
                     "content": f"JD: {job_description}\n\nCV: {cv_text}"
                 }
             ],
-            model="Meta-Llama-3-70B-Instruct",
+            model="Llama-3.3-70B-Instruct",
             temperature=0.1,
         )
         
-        # Parse the string into a real Python Dictionary
-        raw_content = response.choices[0].message.content
+        # Strip markdown code fences if the model wraps its output
+        raw_content = response.choices[0].message.content or ""
+        raw_content = raw_content.strip()
+        if raw_content.startswith("```"):
+            # extract content between the fences
+            parts = raw_content.split("```")
+            raw_content = parts[1].removeprefix("json").strip()
+
+        if not raw_content:
+            raise RuntimeError("LLM returned an empty response.")
+
         return json.loads(raw_content)
     
     except Exception as e:
