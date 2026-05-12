@@ -16,3 +16,16 @@ class EvaluationData(BaseModel):
 class EvaluationResponse(BaseModel):
     status: str
     data: EvaluationData
+
+
+class BatchResultItem(BaseModel):
+    filename: str
+    score: int = Field(..., ge=0, le=100)
+    verdict: str
+    error: str | None = None
+
+
+class BatchResponse(BaseModel):
+    status: str
+    jd_preview: str
+    results: List[BatchResultItem]

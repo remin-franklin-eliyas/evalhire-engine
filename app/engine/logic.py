@@ -10,7 +10,11 @@ client = OpenAI(
     api_key=os.getenv("MODEL_TOKEN") or "not-configured",
 )
 
-def evaluate_cv(cv_text: str, job_description: str):
+CV_TEXT_CHAR_LIMIT = 12_000  # ~3000 tokens — well within Llama 3's 8k context
+
+
+def evaluate_cv(cv_text: str, job_description: str) -> dict:
+    cv_text = cv_text[:CV_TEXT_CHAR_LIMIT]
     try:
         response = client.chat.completions.create(
             messages=[
@@ -25,13 +29,12 @@ def evaluate_cv(cv_text: str, job_description: str):
                     )
                 },
                 {
-                    "role": "user", 
+                    "role": "user",
                     "content": f"JD: {job_description}\n\nCV: {cv_text}"
                 }
             ],
             model="meta-llama-3-70b-instruct",
             temperature=0.1,
-            response_format={"type": "json_object"} # Some providers support this explicitly
         )
         
         # Parse the string into a real Python Dictionary
@@ -39,8 +42,4 @@ def evaluate_cv(cv_text: str, job_description: str):
         return json.loads(raw_content)
     
     except Exception as e:
-        return {
-            "score": 0,
-            "critique": ["Error connecting to brain"],
-            "verdict": f"Technical failure: {str(e)}"
-        }
+        raise RuntimeError(f"LLM call failed: {str(e)}") from e

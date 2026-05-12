@@ -104,7 +104,55 @@ curl -X POST http://localhost:8000/evaluate \
 |--------|--------|
 | `400`  | File is not a PDF |
 | `401`  | `API_KEY` is set and the `X-API-Key` header is missing or wrong |
-| `500`  | PDF text extraction failed or LLM call failed |
+| `413`  | File exceeds 10 MB |
+| `500`  | PDF text extraction failed or LLM returned a malformed response |
+| `502`  | LLM API call failed |
+
+---
+
+### `POST /evaluate/batch`
+
+Evaluate multiple CV PDFs against one job description. Returns all results ranked by score.
+
+**Request** — `multipart/form-data`
+
+| Field   | Type       | Description                          |
+|---------|------------|--------------------------------------|
+| `files` | file (1–N) | One or more candidate CVs — PDF only |
+| `jd`    | text       | Job description as plain text        |
+
+**Example (curl)**
+```bash
+curl -X POST http://localhost:8000/evaluate/batch \
+  -H "X-API-Key: your_api_key_here" \
+  -F "files=@alice.pdf" \
+  -F "files=@bob.pdf" \
+  -F "jd=We are looking for a Lead AI Engineer."
+```
+
+**Response `200 OK`**
+```json
+{
+  "status": "success",
+  "jd_preview": "We are looking for a Lead AI Engineer.",
+  "results": [
+    {
+      "filename": "alice.pdf",
+      "score": 88,
+      "verdict": "Strong hire — high agency and deep ML track record.",
+      "error": null
+    },
+    {
+      "filename": "bob.pdf",
+      "score": 61,
+      "verdict": "Borderline — good fundamentals but limited ownership signals.",
+      "error": null
+    }
+  ]
+}
+```
+
+Results are always sorted descending by score. Non-PDF files or files that fail extraction are included in results with `score: 0` and an `error` message rather than failing the whole request.
 
 ---
 
