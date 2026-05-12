@@ -1,0 +1,19 @@
+{
+    "name": "EvalHire Dev Environment",
+    "image": "mcr.microsoft.com/devcontainers/python:3.10",
+    "customizations": {
+        "vscode": {
+            "extensions": [
+                "ms-python.python",
+                "ms-python.vscode-pylance",
+                "njpwerner.autodocstring",
+                "charliermarsh.ruff"
+            ]
+        }
+    },
+    // This runs once when the container is first created
+    "postCreateCommand": "pip install --upgrade pip && pip install -r requirements.txt",
+    
+    // Ensures your app port is visible to you
+    "forwardPorts": [8000]
+}
