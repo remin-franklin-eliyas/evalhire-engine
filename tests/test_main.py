@@ -42,7 +42,7 @@ def test_evaluate_rejects_wrong_api_key(monkeypatch):
 
 def test_evaluate_accepts_correct_api_key(monkeypatch):
     monkeypatch.setenv("API_KEY", "secret123")
-    with patch("app.engine.logic.evaluate_cv", return_value=MOCK_ANALYSIS):
+    with patch("app.main.evaluate_cv", return_value=MOCK_ANALYSIS):
         with TestClient(app) as c:
             files = {"file": ("cv.pdf", b"%PDF-1.4", "application/pdf")}
             data = {"jd": "Looking for an engineer."}
@@ -53,8 +53,8 @@ def test_evaluate_accepts_correct_api_key(monkeypatch):
 
 
 def test_evaluate_response_shape():
-    with patch("app.engine.logic.evaluate_cv", return_value=MOCK_ANALYSIS):
-        with patch("app.utils.extractor.extract_text_from_pdf", return_value="Candidate CV text"):
+    with patch("app.main.evaluate_cv", return_value=MOCK_ANALYSIS):
+        with patch("app.main.extract_text_from_pdf", return_value="Candidate CV text"):
             files = {"file": ("cv.pdf", b"%PDF-1.4", "application/pdf")}
             data = {"jd": "Looking for a Lead AI Engineer with FastAPI experience."}
             response = client.post("/evaluate", files=files, data=data)
