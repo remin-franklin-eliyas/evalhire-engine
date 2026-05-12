@@ -33,7 +33,7 @@ def evaluate_cv(cv_text: str, job_description: str) -> dict:
                     "content": f"JD: {job_description}\n\nCV: {cv_text}"
                 }
             ],
-            model="meta-llama-3-70b-instruct",
+            model="Meta-Llama-3-70B-Instruct",
             temperature=0.1,
         )
         
