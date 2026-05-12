@@ -1,0 +1,18 @@
+from pydantic import BaseModel, Field
+from typing import List
+
+
+class EvaluationResult(BaseModel):
+    score: int = Field(..., ge=0, le=100)
+    critique: List[str]
+    verdict: str
+
+
+class EvaluationData(BaseModel):
+    filename: str
+    analysis: EvaluationResult
+
+
+class EvaluationResponse(BaseModel):
+    status: str
+    data: EvaluationData
