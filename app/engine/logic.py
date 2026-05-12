@@ -4,28 +4,31 @@ from dotenv import load_dotenv
 
 load_dotenv()
 
-# We use the OpenAI client because most free providers (GitHub/HF) follow this spec
+# GitHub Models uses an OpenAI-compatible endpoint
 client = OpenAI(
-    base_url=os.getenv("MODEL_ENDPOINT"),
-    api_key=os.getenv("MODEL_API_KEY"),
+    base_url="https://models.inference.ai.azure.com",
+    api_key=os.getenv("MODEL_TOKEN"), # Updated variable name
 )
 
-def evaluate_cv(cv_text, job_description):
-    prompt = f"""
-    You are a Founding CTO of a high-growth AI startup. 
-    Analyze this CV against the Job Description. 
-    Look for: High Agency, Technical Depth, and Velocity.
-    
-    JD: {job_description}
-    CV: {cv_text}
-    
-    Provide a 'Startup Fit' score (0-100) and a 3-bullet point critique.
+def evaluate_cv(cv_text: str, job_description: str):
     """
-    
-    response = client.chat.completions.create(
-        messages=[{"role": "user", "content": prompt}],
-        model="meta-llama-3-70b-instruct", # Or whichever free model is available
-        temperature=0.7,
-    )
-    
-    return response.choices[0].message.content
+    Evaluates a CV against a JD using Llama 3 on GitHub's free tier.
+    """
+    try:
+        response = client.chat.completions.create(
+            messages=[
+                {
+                    "role": "system",
+                    "content": "You are a Founding CTO. Evaluate the candidate with extreme rigor."
+                },
+                {
+                    "role": "user", 
+                    "content": f"JD: {job_description}\n\nCV: {cv_text}"
+                }
+            ],
+            model="meta-llama-3-70b-instruct",
+            temperature=0.1, 
+        )
+        return response.choices[0].message.content
+    except Exception as e:
+        return f"Brain Error: {str(e)}"

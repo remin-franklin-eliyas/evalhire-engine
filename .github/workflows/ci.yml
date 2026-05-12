@@ -27,6 +27,8 @@ jobs:
           pip install -r requirements.txt
 
       - name: Run Tests
+        env:
+          MODEL_TOKEN: ${{ secrets.MODEL_TOKEN }} # Map the secret to an env var
         run: |
           export PYTHONPATH=$PYTHONPATH:$(pwd)
           pytest
