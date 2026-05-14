@@ -2,8 +2,8 @@ from fastapi import FastAPI, UploadFile, File, Form, HTTPException, Depends
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.staticfiles import StaticFiles
 from fastapi.responses import FileResponse
-from app.utils.extractor import extract_text_from_pdf
-from app.engine.logic import evaluate_cv
+from app.utils.extractor import extract_text_from_pdf, extract_contact_info
+from app.engine.logic import evaluate_cv, DEFAULT_PERSONA
 from app.models import EvaluationResult, EvaluationData, EvaluationResponse, BatchResultItem, BatchResponse
 from app.auth import verify_api_key
 from typing import List
@@ -39,6 +39,7 @@ def health_check():
 async def evaluate_candidate(
     file: UploadFile = File(...),
     jd: str = Form(...),
+    persona: str = Form(default=""),
     _: None = Depends(verify_api_key),
 ):
     if file.content_type != "application/pdf":
@@ -52,8 +53,9 @@ async def evaluate_candidate(
     if "Error" in extracted_text:
         raise HTTPException(status_code=500, detail="Failed to extract text from CV.")
 
+    active_persona = persona.strip() or DEFAULT_PERSONA
     try:
-        raw = evaluate_cv(extracted_text, jd)
+        raw = evaluate_cv(extracted_text, jd, persona=active_persona)
     except RuntimeError as e:
         raise HTTPException(status_code=502, detail=f"LLM unavailable: {str(e)}")
 
@@ -62,9 +64,10 @@ async def evaluate_candidate(
     except Exception:
         raise HTTPException(status_code=500, detail="LLM returned a malformed response.")
 
+    contact = extract_contact_info(extracted_text)
     return EvaluationResponse(
         status="success",
-        data=EvaluationData(filename=file.filename, analysis=analysis),
+        data=EvaluationData(filename=file.filename, analysis=analysis, contact=contact),
     )
 
 
@@ -72,11 +75,13 @@ async def evaluate_candidate(
 async def evaluate_batch(
     files: List[UploadFile] = File(...),
     jd: str = Form(...),
+    persona: str = Form(default=""),
     _: None = Depends(verify_api_key),
 ):
     if not files:
         raise HTTPException(status_code=400, detail="At least one file is required.")
 
+    active_persona = persona.strip() or DEFAULT_PERSONA
     results = []
     for upload in files:
         if upload.content_type != "application/pdf":
@@ -109,12 +114,14 @@ async def evaluate_batch(
             continue
 
         try:
-            raw = evaluate_cv(extracted_text, jd)
+            raw = evaluate_cv(extracted_text, jd, persona=active_persona)
             analysis = EvaluationResult(**raw)
+            contact = extract_contact_info(extracted_text)
             results.append(BatchResultItem(
                 filename=upload.filename,
                 score=analysis.score,
                 verdict=analysis.verdict,
+                contact=contact,
             ))
         except Exception as e:
             results.append(BatchResultItem(

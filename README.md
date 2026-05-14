@@ -1,15 +1,15 @@
 # EvalHire Engine
 
-An AI-powered CV screening API built for startup hiring. Upload a PDF CV and a job description — get back a structured score, critique, and hire/no-hire verdict in seconds, evaluated through the lens of a Founding CTO.
+An AI-powered CV screening API built to replace the broken parts of hiring. Upload a PDF CV and a job description — get back a structured score, critique, hire/no-hire verdict, and the candidate's contact details (email, phone, LinkedIn) so you can reach out directly. Evaluated through a fully configurable persona: Founding CTO, VP Sales, Design Lead, or your own.
 
 ---
 
 ## How it works
 
 1. You `POST` a candidate's PDF CV + a job description to `/evaluate`
-2. The engine extracts the CV text from the PDF
-3. It sends both to **Llama 3 70B** (via GitHub Models) with a CTO-persona prompt
-4. Returns a structured JSON evaluation scored on **High Agency**, **Technical Depth**, and **Velocity**
+2. The engine extracts the CV text from the PDF and parses contact info (email, phone, LinkedIn)
+3. It sends both to **Llama 3 70B** (via GitHub Models) with a configurable persona prompt
+4. Returns a structured JSON evaluation scored 0–100 with a 3-bullet critique, verdict, and the candidate's contact details
 
 ---
 
@@ -74,10 +74,11 @@ Evaluate a candidate CV against a job description.
 
 **Request** — `multipart/form-data`
 
-| Field  | Type | Description                  |
-|--------|------|------------------------------|
-| `file` | file | Candidate CV — PDF only      |
-| `jd`   | text | Job description as plain text |
+| Field     | Type | Required | Description                                                        |
+|-----------|------|----------|---------------------------------------------------------------------------------------------------------------------------------|
+| `file`    | file | Yes      | Candidate CV — PDF only                                             |
+| `jd`      | text | Yes      | Job description as plain text                                       |
+| `persona` | text | No       | Evaluator persona prompt. Defaults to Founding CTO persona if omitted. |
 
 **Example (curl)**
 ```bash
@@ -85,6 +86,15 @@ curl -X POST http://localhost:8000/evaluate \
   -H "X-API-Key: your_api_key_here" \
   -F "file=@candidate_cv.pdf" \
   -F "jd=We are looking for a Lead AI Engineer with strong FastAPI and LLM experience."
+```
+
+**With a custom persona**
+```bash
+curl -X POST http://localhost:8000/evaluate \
+  -H "X-API-Key: your_api_key_here" \
+  -F "file=@candidate_cv.pdf" \
+  -F "jd=Enterprise account executive role." \
+  -F "persona=You are a VP of Sales at a B2B SaaS company. Evaluate for deal-closing instinct, resilience, and quota attainment."
 ```
 
 **Response `200 OK`**
@@ -101,10 +111,17 @@ curl -X POST http://localhost:8000/evaluate \
         "Job-hopped every 12 months — could signal velocity, could signal lack of follow-through."
       ],
       "verdict": "Promising technical profile, but needs a founder-style interview to validate ownership mindset."
+    },
+    "contact": {
+      "email": "jane@example.com",
+      "phone": "+44 7700 900123",
+      "linkedin": "https://linkedin.com/in/jane-doe"
     }
   }
 }
 ```
+
+Contact fields are `null` if not found in the CV. No LLM call is used for contact extraction — pure regex, zero added latency.
 
 **Error responses**
 
@@ -124,10 +141,11 @@ Evaluate multiple CV PDFs against one job description. Returns all results ranke
 
 **Request** — `multipart/form-data`
 
-| Field   | Type       | Description                          |
-|---------|------------|--------------------------------------|
-| `files` | file (1–N) | One or more candidate CVs — PDF only |
-| `jd`    | text       | Job description as plain text        |
+| Field     | Type       | Required | Description                          |
+|-----------|------------|----------|--------------------------------------|
+| `files`   | file (1–N) | Yes      | One or more candidate CVs — PDF only |
+| `jd`      | text       | Yes      | Job description as plain text        |
+| `persona` | text       | No       | Evaluator persona prompt. Defaults to Founding CTO persona if omitted. |
 
 **Example (curl)**
 ```bash
@@ -148,13 +166,23 @@ curl -X POST http://localhost:8000/evaluate/batch \
       "filename": "alice.pdf",
       "score": 88,
       "verdict": "Strong hire — high agency and deep ML track record.",
-      "error": null
+      "error": null,
+      "contact": {
+        "email": "alice@example.com",
+        "phone": null,
+        "linkedin": "https://linkedin.com/in/alice-smith"
+      }
     },
     {
       "filename": "bob.pdf",
       "score": 61,
       "verdict": "Borderline — good fundamentals but limited ownership signals.",
-      "error": null
+      "error": null,
+      "contact": {
+        "email": "bob@example.com",
+        "phone": "+1 415 555 0199",
+        "linkedin": null
+      }
     }
   ]
 }

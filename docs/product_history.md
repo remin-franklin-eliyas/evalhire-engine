@@ -2,13 +2,13 @@
 
 **Repository:** [remin-franklin-eliyas/evalhire-engine](https://github.com/remin-franklin-eliyas/evalhire-engine)  
 **Branch:** `main`  
-**Last updated:** 2026-05-12
+**Last updated:** 2026-05-14
 
 ---
 
 ## Overview
 
-EvalHire Engine is a FastAPI-based CV evaluation service with a browser UI. It accepts PDF CVs, extracts their text, and scores them against a job description using an LLM. The evaluation persona is a "Founding CTO of a high-growth AI startup", scoring candidates on **High Agency**, **Technical Depth**, and **Velocity**, returning a 0–100 "Startup Fit" score, a 3-bullet critique, and a one-sentence verdict.
+EvalHire Engine is a FastAPI-based CV evaluation service with a browser UI. It accepts PDF CVs, extracts their text, scores them against a job description using an LLM, and automatically extracts the candidate's contact details (email, phone, LinkedIn) from the CV text. The evaluation is driven by a fully configurable persona — defaulting to a "Founding CTO of a high-growth AI startup" (scoring on **High Agency**, **Technical Depth**, and **Velocity**) — but any persona can be supplied via the API or the browser UI. Results include a 0–100 score, a 3-bullet critique, a one-sentence verdict, and a contact card for reaching out directly.
 
 ---
 
@@ -63,19 +63,21 @@ evalhire-engine/
 
 ### Pydantic Models (`app/models.py`)
 
-| Class              | Fields                                            |
-|--------------------|---------------------------------------------------|
-| `EvaluationResult` | `score: int (0–100)`, `critique: List[str]`, `verdict: str` |
-| `EvaluationData`   | `filename: str`, `analysis: EvaluationResult`    |
-| `EvaluationResponse` | `status: str`, `data: EvaluationData`          |
-| `BatchResultItem`  | `filename`, `score`, `verdict`, `error: str|None` |
-| `BatchResponse`    | `status`, `jd_preview`, `results: List[BatchResultItem]` |
+| Class                | Fields                                                                                                      |
+|----------------------|-------------------------------------------------------------------------------------------------------------|
+| `ContactInfo`        | `email: str\|None`, `phone: str\|None`, `linkedin: str\|None`                                               |
+| `EvaluationResult`   | `score: int (0–100)`, `critique: List[str]`, `verdict: str`                                                 |
+| `EvaluationData`     | `filename: str`, `analysis: EvaluationResult`, `contact: ContactInfo\|None`                                 |
+| `EvaluationResponse` | `status: str`, `data: EvaluationData`                                                                       |
+| `BatchResultItem`    | `filename`, `score`, `verdict`, `error: str\|None`, `contact: ContactInfo\|None`                            |
+| `BatchResponse`      | `status`, `jd_preview`, `results: List[BatchResultItem]`                                                    |
 
 ### Browser UI (`app/static/index.html`)
 
 Dark-themed single-page app served at `/`. Features:
-- **Single CV tab** — drag-and-drop or click upload, paste JD, get score ring (green/amber/red), verdict, 3-bullet critique
-- **Batch tab** — upload multiple PDFs, get all candidates ranked by score with colour-coded badges
+- **Single CV tab** — drag-and-drop or click upload, paste JD, get score ring (green/amber/red), verdict, 3-bullet critique, and a "Reach out" contact card (email, phone, LinkedIn) parsed directly from the CV
+- **Batch tab** — upload multiple PDFs, get all candidates ranked by score with colour-coded badges and inline contact links per row
+- **Persona chips** — one-click presets: Founding CTO, VP Sales, Design Lead, Head of Growth, Clinical Lead, or Custom. Selecting a preset fills the persona textarea; Custom unlocks free text
 - **⚙ API settings** collapsible — configurable `X-API-Key` and base URL (defaults to `window.location.origin`)
 
 ---
@@ -181,6 +183,27 @@ All commits by **Remin Franklin Eliyas** (`remin-franklin-eliyas`).
 ---
 
 ## Change Log
+
+### 2026-05-14 — Configurable Persona + Contact Info Extraction
+
+#### Configurable Evaluator Persona
+
+- **`app/engine/logic.py`**: `DEFAULT_PERSONA` constant extracted (Founding CTO). New `_build_system_prompt(persona)` injects persona into the LLM system message while always appending the JSON schema instruction. `evaluate_cv()` now accepts an optional `persona` argument.
+- **`app/main.py`**: Both `/evaluate` and `/evaluate/batch` accept an optional `persona` form field. Empty/missing value falls back to `DEFAULT_PERSONA`.
+- **`app/static/index.html`**: Persona textarea added below JD field in both tabs. Five preset chips (Founding CTO, VP Sales, Design Lead, Head of Growth, Clinical Lead) and a Custom chip. Clicking a preset fills and locks the textarea; Custom clears it for free text. Persona is appended to the `FormData` on submit.
+
+#### Contact Info Extraction
+
+- **`app/models.py`**: New `ContactInfo(email, phone, linkedin)` Pydantic model. Optional `contact: ContactInfo | None` field added to `EvaluationData` and `BatchResultItem`.
+- **`app/utils/extractor.py`**: New `extract_contact_info(text: str) -> ContactInfo` using three regex patterns — RFC-safe email, permissive international phone (covers +44, +1, 07xxx), and LinkedIn handle (normalised to canonical URL). No LLM call — pure regex, zero added latency.
+- **`app/main.py`**: Both routes call `extract_contact_info(extracted_text)` after PDF extraction and include the result in the response.
+- **`app/static/index.html`**: `buildContactCard(c)` renders a dark "Reach out" card for single results with `mailto:`, `tel:`, and LinkedIn links. `buildBatchContact(c)` renders compact inline links on each batch row. Cards are hidden when no contact info is found.
+
+#### Bug Fix
+
+- **`app/main.py`**: Fixed `IndentationError` in `/evaluate/batch` — `for upload in files:` loop header was dropped during an earlier multi-replace, causing the server to crash on startup. Also fixed a missing `results = []` initialisation that caused a `NameError` in the same route.
+
+---
 
 ### 2026-05-12 — Browser UI + Final Hardening (`9b5dde1`)
 

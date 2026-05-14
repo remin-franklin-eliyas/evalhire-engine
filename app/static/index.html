@@ -163,6 +163,47 @@
     .batch-verdict  { font-size: 0.8rem; color: #888; margin-top: 3px; line-height: 1.4; }
     .batch-error    { font-size: 0.8rem; color: #f87171; margin-top: 3px; }
 
+    .contact-card {
+      display: flex;
+      flex-wrap: wrap;
+      gap: 8px 18px;
+      margin-top: 16px;
+      padding: 12px 16px;
+      background: #111;
+      border: 1px solid #2a2a2a;
+      border-radius: 8px;
+    }
+    .contact-card-title {
+      width: 100%;
+      font-size: 0.72rem;
+      font-weight: 700;
+      letter-spacing: 0.08em;
+      text-transform: uppercase;
+      color: #555;
+      margin-bottom: 4px;
+    }
+    .contact-link {
+      font-size: 0.83rem;
+      color: #9ecfff;
+      text-decoration: none;
+      display: flex;
+      align-items: center;
+      gap: 5px;
+    }
+    .contact-link:hover { color: #fff; }
+    .batch-contact {
+      display: flex;
+      flex-wrap: wrap;
+      gap: 6px 14px;
+      margin-top: 5px;
+    }
+    .batch-contact a {
+      font-size: 0.77rem;
+      color: #9ecfff;
+      text-decoration: none;
+    }
+    .batch-contact a:hover { color: #fff; }
+
     .error-box {
       background: #1f0f0f;
       border: 1px solid #7f1d1d;
@@ -174,6 +215,25 @@
 
     #panel-single, #panel-batch { display: none; }
     #panel-single.active, #panel-batch.active { display: block; }
+
+    .persona-chips {
+      display: flex;
+      flex-wrap: wrap;
+      gap: 6px;
+      margin-bottom: 8px;
+    }
+    .chip {
+      padding: 4px 10px;
+      border-radius: 20px;
+      border: 1px solid #333;
+      background: #1a1a1a;
+      color: #888;
+      font-size: 0.78rem;
+      cursor: pointer;
+      transition: border-color 0.15s, color 0.15s;
+    }
+    .chip:hover { border-color: #666; color: #ccc; }
+    .chip.active { border-color: #fff; color: #fff; background: #222; }
 
     .settings-toggle {
       font-size: 0.8rem;
@@ -231,6 +291,11 @@
         <label for="jd-single">Job Description</label>
         <textarea id="jd-single" placeholder="Paste the full job description here…"></textarea>
       </div>
+      <div class="field">
+        <label for="persona-single">Evaluator Persona <span style="color:#555">(optional — defaults to Founding CTO)</span></label>
+        <div class="persona-chips" id="chips-single"></div>
+        <textarea id="persona-single" rows="3" placeholder="e.g. You are a Head of Sales at a B2B SaaS company. Evaluate the candidate for hustle, deal-closing instinct, and resilience."></textarea>
+      </div>
       <button type="submit" id="btn-single">Evaluate</button>
     </form>
     <div class="spinner" id="spinner-single">Evaluating… this takes a few seconds</div>
@@ -253,6 +318,11 @@
       <div class="field">
         <label for="jd-batch">Job Description</label>
         <textarea id="jd-batch" placeholder="Paste the full job description here…"></textarea>
+      </div>
+      <div class="field">
+        <label for="persona-batch">Evaluator Persona <span style="color:#555">(optional — defaults to Founding CTO)</span></label>
+        <div class="persona-chips" id="chips-batch"></div>
+        <textarea id="persona-batch" rows="3" placeholder="e.g. You are a Head of Sales at a B2B SaaS company. Evaluate the candidate for hustle, deal-closing instinct, and resilience."></textarea>
       </div>
       <button type="submit" id="btn-batch">Evaluate All</button>
     </form>
@@ -319,6 +389,24 @@
     container.innerHTML = `<div class="error-box">⚠ ${msg}</div>`;
   }
 
+  function buildContactCard(c) {
+    if (!c || (!c.email && !c.phone && !c.linkedin)) return '';
+    const links = [];
+    if (c.email)    links.push(`<a class="contact-link" href="mailto:${c.email}">✉ ${c.email}</a>`);
+    if (c.phone)    links.push(`<a class="contact-link" href="tel:${c.phone.replace(/\s/g,'')}">📞 ${c.phone}</a>`);
+    if (c.linkedin) links.push(`<a class="contact-link" href="${c.linkedin}" target="_blank" rel="noopener">🔗 LinkedIn</a>`);
+    return `<div class="contact-card"><div class="contact-card-title">Reach out</div>${links.join('')}</div>`;
+  }
+
+  function buildBatchContact(c) {
+    if (!c || (!c.email && !c.phone && !c.linkedin)) return '';
+    const links = [];
+    if (c.email)    links.push(`<a href="mailto:${c.email}">✉ ${c.email}</a>`);
+    if (c.phone)    links.push(`<a href="tel:${c.phone.replace(/\s/g,'')}">📞 ${c.phone}</a>`);
+    if (c.linkedin) links.push(`<a href="${c.linkedin}" target="_blank" rel="noopener">🔗 LinkedIn</a>`);
+    return `<div class="batch-contact">${links.join('')}</div>`;
+  }
+
   function renderSingle(data, container) {
     const a = data.data.analysis;
     const cls = scoreClass(a.score);
@@ -327,6 +415,7 @@
       <div class="score-ring ${cls}">${a.score}</div>
       <div class="verdict">${a.verdict}</div>
       <ul class="critique-list">${critiques}</ul>
+      ${buildContactCard(data.data.contact)}
     `;
   }
 
@@ -339,7 +428,7 @@
         : `<div class="batch-score ${cls}">${r.score}</div>`;
       const detail = r.error
         ? `<div class="batch-error">${r.error}</div>`
-        : `<div class="batch-verdict">${r.verdict}</div>`;
+        : `<div class="batch-verdict">${r.verdict}</div>${buildBatchContact(r.contact)}`;
       return `
         <div class="batch-row">
           ${badge}
@@ -368,6 +457,8 @@
     const fd = new FormData();
     fd.append('file', file);
     fd.append('jd', jd);
+    const persona = document.getElementById('persona-single').value.trim();
+    if (persona) fd.append('persona', persona);
 
     try {
       const res = await fetch(`${getBase()}/evaluate`, { method: 'POST', headers: getHeaders(), body: fd });
@@ -398,6 +489,8 @@
     const fd = new FormData();
     Array.from(files).forEach(f => fd.append('files', f));
     fd.append('jd', jd);
+    const persona = document.getElementById('persona-batch').value.trim();
+    if (persona) fd.append('persona', persona);
 
     try {
       const res = await fetch(`${getBase()}/evaluate/batch`, { method: 'POST', headers: getHeaders(), body: fd });
@@ -410,6 +503,47 @@
       btn.disabled = false; spinner.style.display = 'none';
     }
   });
+  // ── Persona presets ────────────────────────────────────────
+  const PERSONAS = [
+    { label: "🚀 Founding CTO",    text: "You are a Founding CTO of a high-growth AI startup. Evaluate the candidate with extreme rigor. Focus on High Agency, Technical Depth, and Velocity." },
+    { label: "💼 VP Sales",        text: "You are a VP of Sales at a fast-growing B2B SaaS company. Evaluate the candidate for deal-closing instinct, resilience, hustle, and ability to hit quota." },
+    { label: "🎨 Design Lead",     text: "You are a Design Lead at a product-driven startup. Evaluate the candidate for taste, systems thinking, user empathy, and speed of iteration." },
+    { label: "📣 Head of Growth",  text: "You are a Head of Growth at a consumer startup. Evaluate the candidate for data-driven decision making, creative experimentation, and growth channel expertise." },
+    { label: "🏥 Clinical Lead",   text: "You are a Clinical Lead evaluating a healthcare professional. Evaluate for patient safety awareness, clinical knowledge, empathy, and adherence to protocols." },
+    { label: "✏️ Custom",          text: "" },
+  ];
+
+  function setupPersonaChips(chipsId, textareaId) {
+    const container = document.getElementById(chipsId);
+    const textarea  = document.getElementById(textareaId);
+    PERSONAS.forEach(p => {
+      const chip = document.createElement('button');
+      chip.type = 'button';
+      chip.className = 'chip';
+      chip.textContent = p.label;
+      chip.addEventListener('click', () => {
+        container.querySelectorAll('.chip').forEach(c => c.classList.remove('active'));
+        chip.classList.add('active');
+        if (p.text) {
+          textarea.value = p.text;
+          textarea.readOnly = true;
+        } else {
+          textarea.value = '';
+          textarea.readOnly = false;
+          textarea.focus();
+        }
+      });
+      container.appendChild(chip);
+    });
+    // Un-readonly if user edits manually
+    textarea.addEventListener('input', () => {
+      container.querySelectorAll('.chip').forEach(c => c.classList.remove('active'));
+    });
+  }
+
+  setupPersonaChips('chips-single', 'persona-single');
+  setupPersonaChips('chips-batch',  'persona-batch');
+
 </script>
 </body>
 </html>

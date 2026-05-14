@@ -12,21 +12,30 @@ client = OpenAI(
 
 CV_TEXT_CHAR_LIMIT = 12_000  # ~3000 tokens — well within Llama 3's 8k context
 
+DEFAULT_PERSONA = (
+    "You are a Founding CTO of a high-growth AI startup. "
+    "Evaluate the candidate with extreme rigor. "
+    "Focus on High Agency, Technical Depth, and Velocity."
+)
 
-def evaluate_cv(cv_text: str, job_description: str) -> dict:
+
+def _build_system_prompt(persona: str) -> str:
+    return (
+        f"{persona.strip()} "
+        "You must return ONLY a JSON object with the following keys: "
+        "'score' (0-100), 'critique' (list of 3 strings), and 'verdict' (one sentence). "
+        "The score should reflect how well the candidate fits the role described."
+    )
+
+
+def evaluate_cv(cv_text: str, job_description: str, persona: str = DEFAULT_PERSONA) -> dict:
     cv_text = cv_text[:CV_TEXT_CHAR_LIMIT]
     try:
         response = client.chat.completions.create(
             messages=[
                 {
                     "role": "system",
-                    "content": (
-                        "You are a Founding CTO of a high-growth AI startup. "
-                        "Evaluate the candidate with extreme rigor. "
-                        "You must return ONLY a JSON object with the following keys: "
-                        "'score' (0-100), 'critique' (list of 3 strings), and 'verdict' (one sentence). "
-                        "Focus on High Agency, Technical Depth, and Velocity."
-                    )
+                    "content": _build_system_prompt(persona)
                 },
                 {
                     "role": "user",
