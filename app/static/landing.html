@@ -8,15 +8,15 @@
     *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
 
     :root {
-      --bg: #0a0a0a;
-      --surface: #111;
-      --border: #1e1e1e;
-      --text: #e8e8e8;
-      --muted: #666;
-      --accent: #fff;
+      --bg: #080808;
+      --surface: #0f0f0f;
+      --surface2: #141414;
+      --border: #1c1c1c;
+      --border2: #262626;
+      --text: #ebebeb;
+      --muted: #555;
+      --muted2: #888;
       --green: #22c55e;
-      --amber: #f59e0b;
-      --red: #ef4444;
     }
 
     body {
@@ -26,390 +26,410 @@
       min-height: 100vh;
     }
 
-    /* ── Nav ─────────────────────────────────────────────── */
+    @keyframes fadeInUp {
+      from { opacity: 0; transform: translateY(20px); }
+      to   { opacity: 1; transform: translateY(0); }
+    }
+    @keyframes soft-pulse {
+      0%   { box-shadow: 0 0 0 0 rgba(34,197,94,0.3); }
+      70%  { box-shadow: 0 0 0 14px rgba(34,197,94,0); }
+      100% { box-shadow: 0 0 0 0 rgba(34,197,94,0); }
+    }
+    @keyframes glow-drift {
+      0%, 100% { opacity: 0.45; }
+      50%       { opacity: 0.75; }
+    }
+
+    /* ── Nav ─────────────────────────────────────────── */
     nav {
       display: flex;
       align-items: center;
       justify-content: space-between;
-      padding: 20px 40px;
+      padding: 16px 48px;
       border-bottom: 1px solid var(--border);
+      background: rgba(8,8,8,0.9);
+      backdrop-filter: blur(12px);
+      position: sticky;
+      top: 0;
+      z-index: 100;
     }
-    .logo { font-weight: 800; font-size: 1.1rem; letter-spacing: -0.02em; }
-    .logo span { color: var(--muted); font-weight: 400; }
+    .logo { font-weight: 800; font-size: 0.95rem; letter-spacing: -0.03em; }
+    .logo span { color: var(--muted2); font-weight: 400; }
+    .nav-links { display: flex; align-items: center; gap: 4px; }
     nav a {
-      color: var(--muted);
-      text-decoration: none;
-      font-size: 0.88rem;
-      margin-left: 24px;
-      transition: color 0.15s;
+      color: var(--muted2); text-decoration: none;
+      font-size: 0.83rem; padding: 6px 12px; border-radius: 6px;
+      transition: color 0.15s, background 0.15s;
     }
-    nav a:hover { color: var(--text); }
+    nav a:hover { color: var(--text); background: rgba(255,255,255,0.04); }
     .nav-cta {
-      background: var(--accent);
-      color: #000 !important;
-      padding: 8px 18px;
-      border-radius: 6px;
-      font-weight: 600;
-      font-size: 0.85rem !important;
+      background: #fff !important; color: #000 !important;
+      font-weight: 700 !important; font-size: 0.8rem !important;
     }
-    .nav-cta:hover { background: #ddd !important; }
+    .nav-cta:hover { background: #e8e8e8 !important; }
 
-    /* ── Hero ────────────────────────────────────────────── */
+    /* ── Hero ────────────────────────────────────────── */
+    .hero-wrap { position: relative; overflow: hidden; }
+    .hero-glow {
+      position: absolute;
+      top: -60px; left: 50%; transform: translateX(-50%);
+      width: 800px; height: 520px;
+      background: radial-gradient(ellipse at 50% 25%, rgba(255,255,255,0.055) 0%, transparent 60%);
+      pointer-events: none;
+      animation: glow-drift 5s ease-in-out infinite;
+    }
     .hero {
-      max-width: 760px;
-      margin: 0 auto;
-      padding: 100px 24px 80px;
+      position: relative;
+      max-width: 780px; margin: 0 auto;
+      padding: 110px 24px 88px;
       text-align: center;
+      animation: fadeInUp 0.5s ease-out both;
     }
     .badge {
-      display: inline-block;
-      padding: 5px 12px;
-      border: 1px solid #2a2a2a;
-      border-radius: 20px;
-      font-size: 0.75rem;
-      color: var(--muted);
-      letter-spacing: 0.06em;
-      text-transform: uppercase;
-      margin-bottom: 28px;
+      display: inline-flex; align-items: center; gap: 7px;
+      padding: 5px 13px;
+      border: 1px solid var(--border2); border-radius: 20px;
+      font-size: 0.7rem; color: var(--muted2);
+      letter-spacing: 0.08em; text-transform: uppercase;
+      margin-bottom: 32px;
+    }
+    .badge-dot {
+      width: 6px; height: 6px; border-radius: 50%;
+      background: var(--green); flex-shrink: 0;
+      animation: soft-pulse 3s infinite;
     }
     h1 {
-      font-size: clamp(2rem, 5vw, 3.4rem);
-      font-weight: 800;
-      line-height: 1.1;
-      letter-spacing: -0.03em;
-      margin-bottom: 24px;
+      font-size: clamp(2.4rem, 5.5vw, 3.7rem);
+      font-weight: 800; line-height: 1.07; letter-spacing: -0.04em;
+      margin-bottom: 22px;
     }
     h1 em {
       font-style: normal;
-      background: linear-gradient(90deg, #fff 0%, #888 100%);
-      -webkit-background-clip: text;
-      -webkit-text-fill-color: transparent;
+      background: linear-gradient(145deg, #fff 15%, #444 100%);
+      -webkit-background-clip: text; -webkit-text-fill-color: transparent;
       background-clip: text;
     }
     .hero-sub {
-      font-size: 1.1rem;
-      color: var(--muted);
-      line-height: 1.7;
-      max-width: 540px;
-      margin: 0 auto 40px;
+      font-size: 1.05rem; color: var(--muted2); line-height: 1.75;
+      max-width: 500px; margin: 0 auto 44px;
     }
-    .hero-actions {
-      display: flex;
-      gap: 12px;
-      justify-content: center;
-      flex-wrap: wrap;
-    }
+    .hero-actions { display: flex; gap: 10px; justify-content: center; flex-wrap: wrap; }
     .btn-primary {
-      display: inline-block;
-      background: #fff;
-      color: #000;
-      padding: 14px 28px;
-      border-radius: 8px;
-      font-weight: 700;
-      font-size: 0.95rem;
-      text-decoration: none;
-      transition: background 0.15s;
+      display: inline-flex; align-items: center; gap: 6px;
+      background: #fff; color: #000; padding: 13px 26px; border-radius: 8px;
+      font-weight: 700; font-size: 0.9rem; text-decoration: none;
+      transition: opacity 0.15s, transform 0.15s;
     }
-    .btn-primary:hover { background: #ddd; }
+    .btn-primary:hover { opacity: 0.88; transform: translateY(-1px); }
     .btn-ghost {
-      display: inline-block;
-      background: transparent;
-      color: var(--muted);
-      padding: 14px 24px;
-      border-radius: 8px;
-      border: 1px solid var(--border);
-      font-size: 0.9rem;
-      text-decoration: none;
-      transition: color 0.15s, border-color 0.15s;
+      display: inline-flex; align-items: center;
+      background: transparent; color: var(--muted2);
+      padding: 13px 22px; border-radius: 8px; border: 1px solid var(--border2);
+      font-size: 0.88rem; text-decoration: none;
+      transition: color 0.15s, border-color 0.15s, transform 0.15s;
     }
-    .btn-ghost:hover { color: var(--text); border-color: #444; }
+    .btn-ghost:hover { color: var(--text); border-color: #444; transform: translateY(-1px); }
 
-    /* ── Features ────────────────────────────────────────── */
-    .features {
-      max-width: 960px;
-      margin: 0 auto;
-      padding: 60px 24px 80px;
-      display: grid;
-      grid-template-columns: repeat(auto-fit, minmax(260px, 1fr));
-      gap: 20px;
+    /* ── Stats strip ──────────────────────────────────── */
+    .stats-strip { border-top: 1px solid var(--border); border-bottom: 1px solid var(--border); }
+    .stats-inner {
+      max-width: 760px; margin: 0 auto;
+      display: grid; grid-template-columns: repeat(4, 1fr);
     }
-    .feature {
-      background: var(--surface);
-      border: 1px solid var(--border);
-      border-radius: 12px;
-      padding: 28px;
+    .stat { text-align: center; padding: 32px 16px; border-right: 1px solid var(--border); }
+    .stat:last-child { border-right: none; }
+    .stat-value { font-size: 1.9rem; font-weight: 800; letter-spacing: -0.04em; line-height: 1; }
+    .stat-label { font-size: 0.7rem; color: var(--muted); margin-top: 6px; letter-spacing: 0.05em; text-transform: uppercase; }
+
+    /* ── Section chrome ───────────────────────────────── */
+    .section-wrap { max-width: 960px; margin: 0 auto; padding: 80px 24px; }
+    .section-eyebrow {
+      font-size: 0.68rem; font-weight: 700; letter-spacing: 0.1em;
+      text-transform: uppercase; color: var(--muted); margin-bottom: 10px;
     }
-    .feature-icon {
-      font-size: 1.6rem;
-      margin-bottom: 14px;
-    }
-    .feature h3 {
-      font-size: 0.95rem;
-      font-weight: 700;
-      margin-bottom: 8px;
-    }
-    .feature p {
-      font-size: 0.83rem;
-      color: var(--muted);
-      line-height: 1.6;
+    .section-heading {
+      font-size: clamp(1.3rem, 2.5vw, 1.75rem);
+      font-weight: 800; letter-spacing: -0.03em; margin-bottom: 40px;
     }
 
-    /* ── Demo card ───────────────────────────────────────── */
-    .demo-section {
-      max-width: 680px;
-      margin: 0 auto;
-      padding: 0 24px 80px;
+    /* ── How it works ─────────────────────────────────── */
+    .steps-grid {
+      display: grid; grid-template-columns: repeat(3, 1fr);
+      gap: 1px; background: var(--border);
+      border: 1px solid var(--border); border-radius: 14px; overflow: hidden;
     }
-    .demo-section h2 {
-      font-size: 1.4rem;
-      font-weight: 700;
-      text-align: center;
-      margin-bottom: 32px;
+    .step { background: var(--surface); padding: 32px 28px; transition: background 0.2s; }
+    .step:hover { background: var(--surface2); }
+    .step-num { font-size: 0.67rem; font-weight: 700; letter-spacing: 0.1em; color: var(--muted); text-transform: uppercase; margin-bottom: 20px; }
+    .step-icon { font-size: 1.5rem; margin-bottom: 12px; }
+    .step h3 { font-size: 0.92rem; font-weight: 700; margin-bottom: 8px; }
+    .step p  { font-size: 0.82rem; color: var(--muted2); line-height: 1.65; }
+
+    /* ── Features ─────────────────────────────────────── */
+    .features-grid {
+      display: grid; grid-template-columns: repeat(3, 1fr);
+      gap: 1px; background: var(--border);
+      border: 1px solid var(--border); border-radius: 14px; overflow: hidden;
     }
+    .feature { background: var(--surface); padding: 28px; position: relative; transition: background 0.2s; }
+    .feature:hover { background: var(--surface2); }
+    .feature::before { content: ''; position: absolute; top: 0; left: 0; right: 0; height: 2px; }
+    .f-yellow::before { background: #f59e0b; }
+    .f-purple::before { background: #8b5cf6; }
+    .f-blue::before   { background: #3b82f6; }
+    .f-green::before  { background: #22c55e; }
+    .f-orange::before { background: #f97316; }
+    .f-pink::before   { background: #ec4899; }
+    .feature-icon { font-size: 1.35rem; margin-bottom: 14px; }
+    .feature h3 { font-size: 0.88rem; font-weight: 700; margin-bottom: 7px; }
+    .feature p  { font-size: 0.81rem; color: var(--muted2); line-height: 1.65; }
+
+    /* ── Demo card ────────────────────────────────────── */
+    .demo-wrap { max-width: 680px; margin: 0 auto; padding: 0 24px 80px; }
     .demo-card {
-      background: var(--surface);
-      border: 1px solid var(--border);
-      border-radius: 14px;
-      padding: 28px;
+      background: var(--surface); border: 1px solid var(--border2);
+      border-radius: 16px; padding: 28px; position: relative; overflow: hidden;
     }
-    .demo-header {
-      display: flex;
-      align-items: center;
-      gap: 16px;
-      margin-bottom: 20px;
+    .demo-card::before {
+      content: 'Sample output'; position: absolute; top: 18px; right: 18px;
+      font-size: 0.65rem; font-weight: 700; letter-spacing: 0.08em; text-transform: uppercase;
+      color: var(--muted); background: var(--surface2);
+      border: 1px solid var(--border2); padding: 3px 8px; border-radius: 4px;
     }
+    .demo-header { display: flex; align-items: center; gap: 16px; margin-bottom: 20px; }
     .demo-score {
-      width: 56px; height: 56px;
-      border-radius: 50%;
-      border: 3px solid var(--green);
+      width: 56px; height: 56px; border-radius: 50%;
+      border: 2px solid var(--green); background: rgba(34,197,94,0.07);
       display: flex; align-items: center; justify-content: center;
-      font-size: 1.1rem;
-      font-weight: 800;
-      color: var(--green);
-      flex-shrink: 0;
+      font-size: 1.1rem; font-weight: 800; color: var(--green);
+      flex-shrink: 0; animation: soft-pulse 3s infinite;
     }
-    .demo-filename { font-size: 0.82rem; color: var(--muted); margin-bottom: 3px; }
-    .demo-verdict  { font-size: 0.9rem; font-weight: 600; }
+    .demo-filename { font-size: 0.77rem; color: var(--muted); margin-bottom: 4px; font-family: ui-monospace, monospace; }
+    .demo-verdict  { font-size: 0.88rem; font-weight: 600; line-height: 1.4; }
     .demo-critique {
-      list-style: none;
-      margin-bottom: 18px;
+      list-style: none; margin-bottom: 18px;
+      border: 1px solid var(--border); border-radius: 10px; overflow: hidden;
     }
     .demo-critique li {
-      font-size: 0.82rem;
-      color: var(--muted);
-      padding: 6px 0;
-      border-bottom: 1px solid var(--border);
-      line-height: 1.5;
+      font-size: 0.81rem; color: var(--muted2); padding: 10px 14px;
+      line-height: 1.55; border-bottom: 1px solid var(--border); display: flex; gap: 8px;
     }
-    .demo-critique li::before { content: "· "; color: #444; }
+    .demo-critique li:last-child { border-bottom: none; }
+    .demo-critique li::before { content: "·"; color: #333; flex-shrink: 0; }
     .demo-contact {
-      display: flex;
-      gap: 14px;
-      flex-wrap: wrap;
+      display: flex; gap: 16px; flex-wrap: wrap;
+      padding: 12px 14px; background: var(--surface2);
+      border: 1px solid var(--border); border-radius: 8px;
     }
-    .demo-contact a {
-      font-size: 0.8rem;
-      color: #9ecfff;
-      text-decoration: none;
-    }
+    .demo-contact a { font-size: 0.79rem; color: #7db9f0; text-decoration: none; transition: color 0.15s; }
     .demo-contact a:hover { color: #fff; }
 
-    /* ── Personas ─────────────────────────────────────────── */
-    .personas-section {
-      max-width: 860px;
-      margin: 0 auto;
-      padding: 0 24px 80px;
-      text-align: center;
-    }
-    .personas-section h2 {
-      font-size: 1.4rem;
-      font-weight: 700;
-      margin-bottom: 10px;
-    }
-    .personas-section p {
-      color: var(--muted);
-      font-size: 0.88rem;
-      margin-bottom: 28px;
-    }
-    .persona-grid {
-      display: flex;
-      flex-wrap: wrap;
-      gap: 10px;
-      justify-content: center;
-    }
+    /* ── Personas ─────────────────────────────────────── */
+    .personas-wrap { max-width: 860px; margin: 0 auto; padding: 0 24px 80px; text-align: center; }
+    .persona-grid { display: flex; flex-wrap: wrap; gap: 8px; justify-content: center; margin-top: 28px; }
     .persona-pill {
-      padding: 8px 16px;
-      border-radius: 20px;
-      border: 1px solid #2a2a2a;
-      background: var(--surface);
-      color: #aaa;
-      font-size: 0.83rem;
+      padding: 8px 16px; border-radius: 8px;
+      border: 1px solid var(--border2); background: var(--surface); color: #888;
+      font-size: 0.82rem; cursor: default; transition: all 0.15s;
     }
+    .persona-pill:hover { border-color: #3a3a3a; color: #ccc; background: var(--surface2); }
 
-    /* ── Footer ─────────────────────────────────────────── */
-    footer {
-      border-top: 1px solid var(--border);
-      padding: 28px 40px;
-      display: flex;
-      align-items: center;
-      justify-content: space-between;
-      flex-wrap: wrap;
-      gap: 12px;
+    /* ── CTA block ────────────────────────────────────── */
+    .cta-wrap { max-width: 960px; margin: 0 auto; padding: 0 24px 80px; }
+    .cta-box {
+      background: var(--surface); border: 1px solid var(--border2);
+      border-radius: 16px; padding: 64px 40px; text-align: center;
+      position: relative; overflow: hidden;
     }
-    .footer-brand { font-size: 0.82rem; color: var(--muted); }
+    .cta-box::before {
+      content: ''; position: absolute; top: -1px; left: 15%; right: 15%; height: 1px;
+      background: linear-gradient(90deg, transparent, rgba(255,255,255,0.12), transparent);
+    }
+    .cta-box h2 { font-size: clamp(1.5rem, 3vw, 2.2rem); font-weight: 800; letter-spacing: -0.03em; margin-bottom: 12px; }
+    .cta-box p  { font-size: 0.92rem; color: var(--muted2); margin-bottom: 32px; }
+    .cta-note { font-size: 0.75rem; color: var(--muted); margin-top: 16px; }
+
+    /* ── Footer ───────────────────────────────────────── */
+    footer {
+      border-top: 1px solid var(--border); padding: 22px 48px;
+      display: flex; align-items: center; justify-content: space-between;
+      flex-wrap: wrap; gap: 10px;
+    }
+    .footer-brand { font-size: 0.78rem; color: var(--muted); }
     .footer-links { display: flex; gap: 20px; }
-    .footer-links a { font-size: 0.8rem; color: var(--muted); text-decoration: none; }
+    .footer-links a { font-size: 0.77rem; color: var(--muted); text-decoration: none; transition: color 0.15s; }
     .footer-links a:hover { color: var(--text); }
 
-    /* ── Privacy modal ───────────────────────────────────── */
+    /* ── Privacy modal ────────────────────────────────── */
     .modal-backdrop {
-      display: none;
-      position: fixed; inset: 0;
-      background: rgba(0,0,0,0.75);
-      z-index: 100;
-      align-items: center;
-      justify-content: center;
-      padding: 24px;
+      display: none; position: fixed; inset: 0;
+      background: rgba(0,0,0,0.82); backdrop-filter: blur(4px);
+      z-index: 200; align-items: center; justify-content: center; padding: 24px;
     }
     .modal-backdrop.open { display: flex; }
     .modal {
-      background: #111;
-      border: 1px solid #2a2a2a;
-      border-radius: 14px;
-      padding: 32px;
-      max-width: 560px;
-      width: 100%;
-      max-height: 80vh;
-      overflow-y: auto;
+      background: #111; border: 1px solid var(--border2); border-radius: 16px;
+      padding: 32px; max-width: 540px; width: 100%; max-height: 80vh; overflow-y: auto;
     }
-    .modal h2 { font-size: 1.1rem; font-weight: 700; margin-bottom: 16px; }
-    .modal p, .modal li {
-      font-size: 0.85rem;
-      color: #aaa;
-      line-height: 1.7;
-      margin-bottom: 10px;
-    }
+    .modal h2 { font-size: 1.05rem; font-weight: 700; margin-bottom: 18px; }
+    .modal p, .modal li { font-size: 0.82rem; color: #888; line-height: 1.7; margin-bottom: 10px; }
     .modal ul { padding-left: 18px; margin-bottom: 10px; }
+    .modal a { color: #7db9f0; text-decoration: none; }
+    .modal a:hover { text-decoration: underline; }
     .modal-close {
-      margin-top: 20px;
-      background: #222;
-      border: 1px solid #333;
-      color: #ccc;
-      padding: 8px 18px;
-      border-radius: 6px;
-      cursor: pointer;
-      font-size: 0.85rem;
+      margin-top: 20px; background: #1a1a1a; border: 1px solid var(--border2);
+      color: #999; padding: 8px 18px; border-radius: 6px; cursor: pointer;
+      font-size: 0.82rem; transition: background 0.15s;
     }
-    .modal-close:hover { background: #2a2a2a; }
+    .modal-close:hover { background: #222; }
+
+    @media (max-width: 768px) {
+      .stats-inner { grid-template-columns: repeat(2, 1fr); }
+      .stat { border-right: none; border-bottom: 1px solid var(--border); }
+      .stat:nth-child(odd) { border-right: 1px solid var(--border); }
+      .stat:last-child { border-bottom: none; }
+      .steps-grid, .features-grid { grid-template-columns: 1fr; }
+    }
+    @media (max-width: 600px) {
+      nav { padding: 14px 20px; }
+      .hero { padding: 64px 20px 48px; }
+      .section-wrap { padding: 60px 20px; }
+      footer { padding: 20px; flex-direction: column; text-align: center; }
+      .cta-box { padding: 44px 24px; }
+    }
   </style>
 </head>
 <body>
 
-  <nav>
-    <div class="logo">EvalHire <span>Engine</span></div>
-    <div>
-      <a href="/app">Sign in</a>
-      <a href="/app" class="nav-cta">Start screening →</a>
-    </div>
-  </nav>
+<nav>
+  <div class="logo">EvalHire <span>Engine</span></div>
+  <div class="nav-links">
+    <a href="/app">Sign in</a>
+    <a href="/app" class="nav-cta">Start screening →</a>
+  </div>
+</nav>
 
-  <!-- ── Hero ───────────────────────────────────────────────── -->
+<div class="hero-wrap">
+  <div class="hero-glow"></div>
   <section class="hero">
-    <div class="badge">AI-Powered CV Screening</div>
+    <div class="badge"><span class="badge-dot"></span>AI-Powered CV Screening</div>
     <h1>Hire the best candidate,<br><em>not the best CV writer.</em></h1>
     <p class="hero-sub">
-      Upload a CV, paste a job description, get a scored evaluation with critique and a direct contact card — in seconds.
-      No HR gatekeeping. No 5-years-experience-for-a-2-year-old-technology.
+      Upload a CV, paste a job description, get a scored evaluation with critique
+      and a direct contact card — in seconds. No HR gatekeeping.
     </p>
     <div class="hero-actions">
       <a href="/app" class="btn-primary">Start screening CVs →</a>
       <a href="https://github.com/remin-franklin-eliyas/evalhire-engine" target="_blank" rel="noopener" class="btn-ghost">View on GitHub</a>
     </div>
   </section>
+</div>
 
-  <!-- ── Features ───────────────────────────────────────────── -->
-  <section class="features">
-    <div class="feature">
-      <div class="feature-icon">⚡</div>
-      <h3>Scored in seconds</h3>
-      <p>0–100 startup fit score with a 3-bullet critique and a one-sentence hire/no-hire verdict — every time, instantly.</p>
-    </div>
-    <div class="feature">
-      <div class="feature-icon">🎭</div>
-      <h3>Configurable persona</h3>
-      <p>Evaluate through the eyes of a Founding CTO, VP Sales, Design Lead, or write your own persona. The LLM adapts its rubric accordingly.</p>
-    </div>
-    <div class="feature">
-      <div class="feature-icon">📇</div>
-      <h3>Contact info extracted</h3>
-      <p>Email, phone, and LinkedIn parsed directly from the PDF so you can reach the right candidate immediately — no chasing HR for details.</p>
-    </div>
-    <div class="feature">
-      <div class="feature-icon">📋</div>
-      <h3>Full screening history</h3>
-      <p>Every evaluation saved to your account. Come back tomorrow, compare candidates, sort by score, and pick up exactly where you left off.</p>
-    </div>
-    <div class="feature">
-      <div class="feature-icon">📦</div>
-      <h3>Batch mode</h3>
-      <p>Upload 10 CVs at once. Get them all ranked by score in one request. Great for screening an entire applicant pool in under a minute.</p>
-    </div>
-    <div class="feature">
-      <div class="feature-icon">🔌</div>
-      <h3>REST API</h3>
-      <p>Headless API access via X-API-Key. Plug it into your ATS, Notion database, or any internal tool with a simple POST request.</p>
-    </div>
-  </section>
+<div class="stats-strip">
+  <div class="stats-inner">
+    <div class="stat"><div class="stat-value">&lt;&nbsp;10s</div><div class="stat-label">per evaluation</div></div>
+    <div class="stat"><div class="stat-value">0–100</div><div class="stat-label">fit score</div></div>
+    <div class="stat"><div class="stat-value">5</div><div class="stat-label">built-in personas</div></div>
+    <div class="stat"><div class="stat-value">REST</div><div class="stat-label">API access</div></div>
+  </div>
+</div>
 
-  <!-- ── Demo result card ────────────────────────────────────── -->
-  <section class="demo-section">
-    <h2>What a result looks like</h2>
-    <div class="demo-card">
-      <div class="demo-header">
-        <div class="demo-score">87</div>
-        <div>
-          <div class="demo-filename">senior_engineer_cv.pdf</div>
-          <div class="demo-verdict">Strong hire — ship it, interview fast before someone else does.</div>
-        </div>
+<div class="section-wrap">
+  <div class="section-eyebrow">How it works</div>
+  <div class="section-heading">Three steps from upload to decision</div>
+  <div class="steps-grid">
+    <div class="step">
+      <div class="step-num">Step 01</div>
+      <div class="step-icon">📄</div>
+      <h3>Upload a CV + paste a JD</h3>
+      <p>Drop a PDF and paste your job description. Pick a persona — Founding CTO, VP Sales, or write your own in plain English.</p>
+    </div>
+    <div class="step">
+      <div class="step-num">Step 02</div>
+      <div class="step-icon">⚡</div>
+      <h3>LLM scores the candidate</h3>
+      <p>Llama-3.3-70B produces a 0–100 score, a 3-point critique, and a direct hire/pass verdict — calibrated to your persona.</p>
+    </div>
+    <div class="step">
+      <div class="step-num">Step 03</div>
+      <div class="step-icon">📇</div>
+      <h3>Contact card extracted</h3>
+      <p>Email, phone, and LinkedIn parsed from the PDF so you can reach the right candidate without ever opening it.</p>
+    </div>
+  </div>
+</div>
+
+<div class="section-wrap" style="padding-top:0">
+  <div class="section-eyebrow">Features</div>
+  <div class="section-heading">Everything you need, nothing you don't</div>
+  <div class="features-grid">
+    <div class="feature f-yellow"><div class="feature-icon">⚡</div><h3>Scored in seconds</h3><p>0–100 startup fit score with a 3-bullet critique and a one-sentence verdict — every time, instantly.</p></div>
+    <div class="feature f-purple"><div class="feature-icon">🎭</div><h3>Configurable persona</h3><p>Evaluate through the eyes of a Founding CTO, VP Sales, Design Lead, or write your own. The LLM adapts its rubric accordingly.</p></div>
+    <div class="feature f-blue"><div class="feature-icon">📇</div><h3>Contact info extracted</h3><p>Email, phone, and LinkedIn parsed directly from the PDF so you can reach the right candidate immediately.</p></div>
+    <div class="feature f-green"><div class="feature-icon">📋</div><h3>Full screening history</h3><p>Every evaluation saved to your account. Compare candidates, pick up where you left off.</p></div>
+    <div class="feature f-orange"><div class="feature-icon">📦</div><h3>Batch mode</h3><p>Upload 10 CVs at once. Get them all ranked in one request. Screen an entire applicant pool in under a minute.</p></div>
+    <div class="feature f-pink"><div class="feature-icon">🔌</div><h3>REST API</h3><p>Headless access via X-API-Key. Plug it into your ATS, Notion database, or any internal tool.</p></div>
+  </div>
+</div>
+
+<div class="demo-wrap">
+  <div style="text-align:center;margin-bottom:28px">
+    <div class="section-eyebrow" style="margin-bottom:8px">Sample result</div>
+    <div class="section-heading" style="margin-bottom:0;font-size:1.4rem">What an evaluation looks like</div>
+  </div>
+  <div class="demo-card">
+    <div class="demo-header">
+      <div class="demo-score">87</div>
+      <div>
+        <div class="demo-filename">senior_engineer_cv.pdf</div>
+        <div class="demo-verdict">Strong hire — interview fast before someone else does.</div>
       </div>
-      <ul class="demo-critique">
-        <li>Shipped three production ML systems end-to-end with measurable impact — clear technical depth and ownership.</li>
-        <li>Moved from seed-stage to Series B in 18 months; understands what velocity actually looks like.</li>
-        <li>No evidence of cross-functional leadership yet — worth probing in the loop interview.</li>
-      </ul>
-      <div class="demo-contact">
-        <a href="#">✉ jane@example.com</a>
-        <a href="#">📞 +44 7700 900123</a>
-        <a href="#">🔗 LinkedIn</a>
-      </div>
     </div>
-  </section>
-
-  <!-- ── Persona section ─────────────────────────────────────── -->
-  <section class="personas-section">
-    <h2>Built-in evaluation personas</h2>
-    <p>One click to switch the lens. Or write your own in plain English.</p>
-    <div class="persona-grid">
-      <div class="persona-pill">🚀 Founding CTO</div>
-      <div class="persona-pill">💼 VP Sales</div>
-      <div class="persona-pill">🎨 Design Lead</div>
-      <div class="persona-pill">📣 Head of Growth</div>
-      <div class="persona-pill">🏥 Clinical Lead</div>
-      <div class="persona-pill">✏️ Custom persona</div>
+    <ul class="demo-critique">
+      <li>Shipped three production ML systems end-to-end with measurable impact — clear technical depth and ownership.</li>
+      <li>Moved from seed-stage to Series B in 18 months; understands what velocity actually looks like.</li>
+      <li>No evidence of cross-functional leadership yet — worth probing in the loop interview.</li>
+    </ul>
+    <div class="demo-contact">
+      <a href="#">✉ jane@example.com</a>
+      <a href="#">📞 +44 7700 900123</a>
+      <a href="#">🔗 LinkedIn</a>
     </div>
-  </section>
+  </div>
+</div>
 
-  <!-- ── Footer ─────────────────────────────────────────────── -->
-  <footer>
-    <div class="footer-brand">© 2026 EvalHire Engine</div>
-    <div class="footer-links">
-      <a href="/app">App</a>
-      <a href="https://github.com/remin-franklin-eliyas/evalhire-engine" target="_blank" rel="noopener">GitHub</a>
-      <a href="#" onclick="document.getElementById('privacy-modal').classList.add('open'); return false;">Privacy</a>
-    </div>
-  </footer>
+<div class="personas-wrap">
+  <div class="section-eyebrow">Personas</div>
+  <div class="section-heading" style="font-size:1.4rem;margin-bottom:8px">Built-in evaluation personas</div>
+  <p style="color:var(--muted2);font-size:0.86rem">One click to switch the lens. Or write your own in plain English.</p>
+  <div class="persona-grid">
+    <div class="persona-pill">🚀 Founding CTO</div>
+    <div class="persona-pill">💼 VP Sales</div>
+    <div class="persona-pill">🎨 Design Lead</div>
+    <div class="persona-pill">📣 Head of Growth</div>
+    <div class="persona-pill">🏥 Clinical Lead</div>
+    <div class="persona-pill">✏️ Custom persona</div>
+  </div>
+</div>
 
-  <!-- ── Privacy modal ──────────────────────────────────────── -->
+<div class="cta-wrap">
+  <div class="cta-box">
+    <h2>Ready to screen smarter?</h2>
+    <p>Free tier included — 2 evaluations/month, no credit card required.</p>
+    <a href="/app" class="btn-primary" style="font-size:0.92rem;padding:14px 30px">Start screening CVs →</a>
+    <div class="cta-note">Open source · Hosted on Railway · GitHub Models inference</div>
+  </div>
+</div>
+
+<footer>
+  <div class="footer-brand">© 2026 EvalHire Engine</div>
+  <div class="footer-links">
+    <a href="/app">App</a>
+    <a href="https://github.com/remin-franklin-eliyas/evalhire-engine" target="_blank" rel="noopener">GitHub</a>
+    <a href="#" onclick="document.getElementById('privacy-modal').classList.add('open'); return false;">Privacy</a>
+  </div>
+</footer>
+
   <div class="modal-backdrop" id="privacy-modal">
     <div class="modal">
       <h2>Privacy &amp; Data Handling</h2>
@@ -425,11 +445,11 @@
       </ul>
       <p><strong>Third-party services</strong></p>
       <ul>
-        <li>CV text and the job description are sent to <strong>GitHub Models</strong> (Microsoft Azure inference) to generate the evaluation. This is subject to <a href="https://docs.github.com/en/site-policy/privacy-policies/github-privacy-statement" target="_blank" rel="noopener" style="color:#9ecfff">GitHub's privacy policy</a>.</li>
+        <li>CV text and job description are sent to <strong>GitHub Models</strong> (Microsoft Azure inference) for evaluation. Subject to <a href="https://docs.github.com/en/site-policy/privacy-policies/github-privacy-statement" target="_blank" rel="noopener">GitHub's privacy policy</a>.</li>
         <li>The application is hosted on <strong>Railway.app</strong>.</li>
       </ul>
       <p><strong>Candidate data</strong></p>
-      <p>You are responsible for ensuring you have the right to upload and process the CVs of candidates in your jurisdiction. Do not upload CVs without a lawful basis under applicable data protection law (e.g. GDPR, UK GDPR).</p>
+      <p>You are responsible for ensuring you have the right to upload and process candidate CVs under applicable data protection law (e.g. GDPR).</p>
       <p><strong>Data retention</strong></p>
       <p>Evaluation history is retained until you delete your account. Contact us to request deletion.</p>
       <button class="modal-close" onclick="document.getElementById('privacy-modal').classList.remove('open')">Close</button>
@@ -437,9 +457,17 @@
   </div>
 
   <script>
-    // Close modal on backdrop click
     document.getElementById('privacy-modal').addEventListener('click', function(e) {
       if (e.target === this) this.classList.remove('open');
+    });
+
+    // Smooth scroll for anchor links
+    document.querySelectorAll('a[href^="#"]').forEach(anchor => {
+      anchor.addEventListener('click', function(e) {
+        e.preventDefault();
+        const target = document.querySelector(this.getAttribute('href'));
+        if (target) target.scrollIntoView({ behavior: 'smooth' });
+      });
     });
   </script>
 

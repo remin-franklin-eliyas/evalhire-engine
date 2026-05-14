@@ -17,11 +17,49 @@ from app.database import engine, get_db
 from app.routers import auth_routes, history_routes
 
 MAX_UPLOAD_BYTES = 10 * 1024 * 1024  # 10 MB
+FREE_TIER_MONTHLY_LIMIT = 2
 
 # ── Create DB tables on startup ───────────────────────────────────────────────
 from app.db_models import User, EvaluationRecord  # noqa: F401 — registers models with Base
 from app.database import Base
+from datetime import datetime, timezone
 Base.metadata.create_all(bind=engine)
+
+# ── Inline migration: add columns that may be missing from older DBs ──────────
+with engine.connect() as _conn:
+    from sqlalchemy import text as _text
+    try:
+        _conn.execute(_text("ALTER TABLE users ADD COLUMN tier TEXT NOT NULL DEFAULT 'free'"))
+        _conn.commit()
+    except Exception:
+        pass  # column already exists
+
+
+def _check_free_tier(user, db: Session, slots_needed: int = 1) -> None:
+    """Raises HTTP 429 if a free-tier user has hit their monthly evaluation cap."""
+    if user is None or user.tier != "free":
+        return
+    month_start = datetime.now(timezone.utc).replace(
+        day=1, hour=0, minute=0, second=0, microsecond=0
+    )
+    used = (
+        db.query(EvaluationRecord)
+        .filter(
+            EvaluationRecord.user_id == user.id,
+            EvaluationRecord.created_at >= month_start,
+        )
+        .count()
+    )
+    remaining = FREE_TIER_MONTHLY_LIMIT - used
+    if remaining < slots_needed:
+        raise HTTPException(
+            status_code=429,
+            detail=(
+                f"Free tier limit reached — {FREE_TIER_MONTHLY_LIMIT} evaluations/month. "
+                f"You have {max(0, remaining)} remaining this month. "
+                "Upgrade to Pro for unlimited screening."
+            ),
+        )
 
 app = FastAPI(title="EvalHire Engine")
 
@@ -74,6 +112,8 @@ async def evaluate_candidate(
     if "Error" in extracted_text:
         raise HTTPException(status_code=500, detail="Failed to extract text from CV.")
 
+    _check_free_tier(current_user, db)
+
     active_persona = persona.strip() or DEFAULT_PERSONA
     try:
         raw = evaluate_cv(extracted_text, jd, persona=active_persona)
@@ -120,6 +160,9 @@ async def evaluate_batch(
 ):
     if not files:
         raise HTTPException(status_code=400, detail="At least one file is required.")
+
+    pdf_count = sum(1 for f in files if f.content_type == "application/pdf")
+    _check_free_tier(current_user, db, slots_needed=pdf_count)
 
     active_persona = persona.strip() or DEFAULT_PERSONA
     results = []
