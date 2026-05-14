@@ -36,7 +36,9 @@ uvicorn app.main:app --reload
 
 The API will be running at `http://localhost:8000`.
 
-**Frontend UI:** `http://localhost:8000` — open in your browser to upload CVs and see results without curl.
+**Landing page:** `http://localhost:8000` — marketing page with feature overview and privacy statement.
+
+**App UI:** `http://localhost:8000/app` — sign in/register, upload CVs, view history.
 
 Interactive API docs: `http://localhost:8000/docs`
 
@@ -64,7 +66,74 @@ Health check.
 
 ### `GET /`
 
-Serves the browser UI (`app/static/index.html`).
+Serves the landing page (`app/static/landing.html`).
+
+---
+
+### `GET /app`
+
+Serves the browser app (`app/static/index.html`) — Single CV, Batch, and History tabs. Sign in or create an account to save evaluation history.
+
+---
+
+### `POST /auth/register`
+
+Create a new account.
+
+**Request** — `application/json`
+
+```json
+{ "email": "you@example.com", "password": "yourpassword" }
+```
+
+**Response `201 Created`**
+```json
+{ "access_token": "<jwt>", "token_type": "bearer", "email": "you@example.com" }
+```
+
+---
+
+### `POST /auth/login`
+
+**Request** — `application/json`
+
+```json
+{ "email": "you@example.com", "password": "yourpassword" }
+```
+
+**Response `200 OK`** — same shape as `/auth/register`.
+
+---
+
+### `GET /auth/me`
+
+Returns the current user's id, email, and created_at. Requires `Authorization: Bearer <token>`.
+
+---
+
+### `GET /history`
+
+Returns the authenticated user's last 200 evaluations, newest first. Requires `Authorization: Bearer <token>`.
+
+```json
+[
+  {
+    "id": 42,
+    "created_at": "2026-05-14T18:30:00",
+    "filename": "jane_cv.pdf",
+    "jd_preview": "Senior AI Engineer…",
+    "score": 87,
+    "verdict": "Strong hire — ship it.",
+    "critique": ["...", "...", "..."],
+    "persona_used": "You are a Founding CTO…",
+    "contact_email": "jane@example.com",
+    "contact_phone": "+44 7700 900123",
+    "contact_linkedin": "https://linkedin.com/in/jane-doe"
+  }
+]
+```
+
+Evaluations are saved automatically to history whenever `/evaluate` or `/evaluate/batch` is called with a valid `Authorization: Bearer <token>` header.
 
 ---
 
@@ -194,10 +263,13 @@ Results are always sorted descending by score. Non-PDF files or files that fail 
 
 ## Environment variables
 
-| Variable      | Required | Description                                             |
-|---------------|----------|---------------------------------------------------------|
-| `MODEL_TOKEN` | Yes      | API key for GitHub Models (or any OpenAI-spec provider) |
-| `API_KEY`     | No       | Key callers must send in `X-API-Key` header. Leave unset to disable auth (dev mode) |
+| Variable       | Required | Description                                                                          |
+|----------------|----------|--------------------------------------------------------------------------------------|
+| `MODEL_TOKEN`  | Yes      | API key for GitHub Models (or any OpenAI-spec provider)                              |
+| `API_KEY`      | No       | Key callers must send in `X-API-Key` header. Leave unset to disable auth (dev mode)  |
+| `SECRET_KEY`   | No       | JWT signing secret. Auto-generated on startup if unset (tokens invalidate on restart)|
+| `DATABASE_URL` | No       | SQLAlchemy database URL. Defaults to `sqlite:///./evalhire.db` for local dev. Set to Railway PostgreSQL URL in production. |
+
 > In CI, `MODEL_TOKEN` is injected from a GitHub Actions repository secret. Never commit `.env`.
 
 ---
@@ -213,15 +285,18 @@ pytest
 
 ## Tech stack
 
-| Layer       | Tech                                          |
-|-------------|-----------------------------------------------|
-| Frontend    | Plain HTML/CSS/JS served by FastAPI           |
-| API         | FastAPI 0.110 + uvicorn                       |
-| PDF parsing | pdfplumber 0.11                               |
-| LLM         | Llama 3.3 70B via GitHub Models               |
-| LLM client  | OpenAI Python SDK 1.12 (OpenAI-spec)          |
-| CI          | GitHub Actions — runs pytest on every push/PR |
-| Dev env     | VS Code Dev Container (Python 3.10)           |
+| Layer        | Tech                                                       |
+|--------------|------------------------------------------------------------|
+| Landing page | Plain HTML/CSS served by FastAPI                           |
+| App UI       | Plain HTML/CSS/JS served by FastAPI                        |
+| API          | FastAPI 0.110 + uvicorn                                    |
+| Auth         | JWT (python-jose) + bcrypt password hashing                |
+| Database     | SQLAlchemy 2.0 — SQLite locally, PostgreSQL on Railway     |
+| PDF parsing  | pdfplumber 0.11                                            |
+| LLM          | Llama 3.3 70B via GitHub Models                            |
+| LLM client   | OpenAI Python SDK 1.12 (OpenAI-spec)                       |
+| CI           | GitHub Actions — runs pytest on every push/PR              |
+| Dev env      | VS Code Dev Container (Python 3.10)                        |
 
 ---
 
@@ -229,15 +304,21 @@ pytest
 
 ```
 app/
-├── main.py           # FastAPI routes
-├── auth.py           # X-API-Key authentication
-├── models.py         # Pydantic request/response schemas
+├── main.py              # FastAPI routes — /, /app, /health, /evaluate, /evaluate/batch, /auth/*, /history
+├── auth.py              # JWT + X-API-Key auth, password hashing (bcrypt)
+├── database.py          # SQLAlchemy engine + session factory
+├── db_models.py         # ORM models: User, EvaluationRecord
+├── models.py            # Pydantic request/response schemas
+├── routers/
+│   ├── auth_routes.py   # POST /auth/register, /auth/login, GET /auth/me
+│   └── history_routes.py# GET /history
 ├── engine/
-│   └── logic.py      # LLM evaluation logic
+│   └── logic.py         # LLM evaluation logic
 ├── utils/
-│   └── extractor.py  # PDF → text
+│   └── extractor.py     # PDF → text + contact info extraction
 └── static/
-    └── index.html    # Browser UI
+    ├── landing.html     # Marketing landing page
+    └── index.html       # Browser app (Single CV + Batch + History tabs)
 tests/
 └── test_main.py
 .github/workflows/

@@ -213,8 +213,193 @@
       font-size: 0.88rem;
     }
 
-    #panel-single, #panel-batch { display: none; }
-    #panel-single.active, #panel-batch.active { display: block; }
+    #panel-single, #panel-batch, #panel-history { display: none; }
+    #panel-single.active, #panel-batch.active, #panel-history.active { display: block; }
+
+    /* ── Auth modal ────────────────────────────────────────── */
+    .modal-backdrop {
+      display: none;
+      position: fixed; inset: 0;
+      background: rgba(0,0,0,0.8);
+      z-index: 200;
+      align-items: center;
+      justify-content: center;
+      padding: 16px;
+    }
+    .modal-backdrop.open { display: flex; }
+    .modal {
+      background: #131313;
+      border: 1px solid #2a2a2a;
+      border-radius: 14px;
+      padding: 32px;
+      width: 100%;
+      max-width: 400px;
+    }
+    .modal h2 { font-size: 1.1rem; font-weight: 700; margin-bottom: 20px; }
+    .modal-tabs {
+      display: flex;
+      gap: 4px;
+      background: #0d0d0d;
+      border-radius: 6px;
+      padding: 3px;
+      margin-bottom: 20px;
+    }
+    .modal-tab {
+      flex: 1;
+      padding: 7px;
+      border: none;
+      border-radius: 4px;
+      background: transparent;
+      color: #777;
+      cursor: pointer;
+      font-size: 0.85rem;
+    }
+    .modal-tab.active { background: #1f1f1f; color: #fff; }
+    .modal input[type="email"],
+    .modal input[type="password"] {
+      width: 100%;
+      background: #0d0d0d;
+      border: 1px solid #2a2a2a;
+      border-radius: 8px;
+      color: #e8e8e8;
+      font-size: 0.9rem;
+      padding: 10px 12px;
+      outline: none;
+      margin-bottom: 12px;
+      transition: border-color 0.15s;
+    }
+    .modal input:focus { border-color: #444; }
+    .modal-submit {
+      width: 100%;
+      padding: 11px;
+      background: #fff;
+      color: #000;
+      border: none;
+      border-radius: 8px;
+      font-size: 0.9rem;
+      font-weight: 700;
+      cursor: pointer;
+      margin-top: 4px;
+      transition: opacity 0.15s;
+    }
+    .modal-submit:hover { opacity: 0.88; }
+    .modal-submit:disabled { opacity: 0.4; cursor: not-allowed; }
+    .modal-error {
+      color: #f87171;
+      font-size: 0.8rem;
+      margin-bottom: 10px;
+      min-height: 16px;
+    }
+    .modal-cancel {
+      margin-top: 12px;
+      background: none;
+      border: none;
+      color: #555;
+      font-size: 0.8rem;
+      cursor: pointer;
+      width: 100%;
+      text-align: center;
+    }
+    .modal-cancel:hover { color: #888; }
+
+    /* ── App header with account ───────────────────────────── */
+    .app-header {
+      width: 100%;
+      max-width: 680px;
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      margin-bottom: 32px;
+    }
+    .app-header-left h1  { font-size: 1.6rem; font-weight: 700; letter-spacing: -0.5px; }
+    .app-header-left p   { color: #888; margin-top: 4px; font-size: 0.88rem; }
+    .account-pill {
+      display: flex;
+      align-items: center;
+      gap: 8px;
+      padding: 7px 12px;
+      border: 1px solid #2a2a2a;
+      border-radius: 20px;
+      font-size: 0.8rem;
+      color: #888;
+      background: #161616;
+      white-space: nowrap;
+    }
+    .account-pill .user-email { color: #ccc; max-width: 140px; overflow: hidden; text-overflow: ellipsis; }
+    .account-pill button {
+      background: none;
+      border: none;
+      color: #555;
+      font-size: 0.75rem;
+      cursor: pointer;
+      padding: 0;
+    }
+    .account-pill button:hover { color: #aaa; }
+    #btn-signin {
+      padding: 7px 14px;
+      background: #fff;
+      color: #000;
+      border: none;
+      border-radius: 20px;
+      font-size: 0.8rem;
+      font-weight: 700;
+      cursor: pointer;
+      transition: opacity 0.15s;
+    }
+    #btn-signin:hover { opacity: 0.88; }
+
+    /* ── History panel ─────────────────────────────────────── */
+    .history-empty {
+      text-align: center;
+      padding: 40px 0;
+      color: #555;
+      font-size: 0.88rem;
+    }
+    .history-empty a { color: #9ecfff; text-decoration: none; }
+    .history-row {
+      background: #1a1a1a;
+      border-radius: 8px;
+      padding: 14px 16px;
+      margin-bottom: 10px;
+      cursor: pointer;
+      transition: background 0.15s;
+    }
+    .history-row:hover { background: #1f1f1f; }
+    .history-row-top {
+      display: flex;
+      align-items: center;
+      gap: 12px;
+    }
+    .history-score {
+      min-width: 40px; height: 40px;
+      border-radius: 50%;
+      display: flex; align-items: center; justify-content: center;
+      font-weight: 700; font-size: 0.85rem;
+      flex-shrink: 0;
+    }
+    .history-meta { flex: 1; min-width: 0; }
+    .history-filename { font-size: 0.85rem; font-weight: 600; color: #e8e8e8; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+    .history-date { font-size: 0.75rem; color: #555; margin-top: 2px; }
+    .history-verdict { font-size: 0.8rem; color: #888; margin-top: 6px; line-height: 1.4; }
+    .history-detail {
+      display: none;
+      margin-top: 12px;
+      padding-top: 12px;
+      border-top: 1px solid #2a2a2a;
+    }
+    .history-detail.open { display: block; }
+    .history-critique {
+      list-style: none;
+      margin-bottom: 10px;
+    }
+    .history-critique li {
+      font-size: 0.8rem;
+      color: #aaa;
+      padding: 5px 0;
+      border-bottom: 1px solid #222;
+      line-height: 1.5;
+    }
+    .history-critique li::before { content: "· "; color: #444; }
 
     .persona-chips {
       display: flex;
@@ -250,15 +435,38 @@
 <body>
 
 <header>
-  <h1>EvalHire Engine</h1>
-  <p>AI-powered CV screening — evaluated like a Founding CTO</p>
+  <div class="app-header">
+    <div class="app-header-left">
+      <h1>EvalHire Engine</h1>
+      <p>AI-powered CV screening — evaluated like a Founding CTO</p>
+    </div>
+    <div id="account-area">
+      <button id="btn-signin" onclick="openAuthModal()">Sign in</button>
+    </div>
+  </div>
 </header>
+
+<!-- ── Auth modal ────────────────────────────────────────────── -->
+<div class="modal-backdrop" id="auth-modal">
+  <div class="modal">
+    <div class="modal-tabs">
+      <button class="modal-tab active" onclick="switchAuthTab('login')">Sign in</button>
+      <button class="modal-tab"        onclick="switchAuthTab('register')">Create account</button>
+    </div>
+    <div class="modal-error" id="auth-error"></div>
+    <input type="email"    id="auth-email"    placeholder="Email address"  autocomplete="email" />
+    <input type="password" id="auth-password" placeholder="Password (min 8 chars)" autocomplete="current-password" />
+    <button class="modal-submit" id="auth-submit" onclick="submitAuth()">Sign in</button>
+    <button class="modal-cancel" onclick="closeAuthModal()">Cancel</button>
+  </div>
+</div>
 
 <div class="card">
 
   <div class="tabs">
     <button class="tab active" onclick="switchTab('single')">Single CV</button>
     <button class="tab"        onclick="switchTab('batch')">Batch</button>
+    <button class="tab"        onclick="switchTab('history')">History</button>
   </div>
 
   <!-- ── Settings ───────────────────────────────────────────── -->
@@ -330,14 +538,121 @@
     <div id="batch-result"></div>
   </div>
 
+  <!-- ── History ────────────────────────────────────────────── -->
+  <div id="panel-history">
+    <div id="history-content">
+      <div class="history-empty">Sign in to view your evaluation history.</div>
+    </div>
+  </div>
+
 </div>
 
 <script>
+  // ── Auth state ─────────────────────────────────────────────
+  let _authToken = localStorage.getItem('evalhire_token') || null;
+  let _authEmail = localStorage.getItem('evalhire_email') || null;
+
+  function saveAuth(token, email) {
+    _authToken = token; _authEmail = email;
+    localStorage.setItem('evalhire_token', token);
+    localStorage.setItem('evalhire_email', email);
+    renderAccountPill();
+  }
+
+  function clearAuth() {
+    _authToken = null; _authEmail = null;
+    localStorage.removeItem('evalhire_token');
+    localStorage.removeItem('evalhire_email');
+    renderAccountPill();
+  }
+
+  function renderAccountPill() {
+    const area = document.getElementById('account-area');
+    if (_authToken && _authEmail) {
+      area.innerHTML = `
+        <div class="account-pill">
+          <span class="user-email">${_authEmail}</span>
+          <button onclick="signOut()">Sign out</button>
+        </div>`;
+    } else {
+      area.innerHTML = `<button id="btn-signin" onclick="openAuthModal()">Sign in</button>`;
+    }
+  }
+
+  function signOut() { clearAuth(); }
+
+  // ── Auth modal ─────────────────────────────────────────────
+  let _authMode = 'login';
+
+  function openAuthModal() {
+    document.getElementById('auth-error').textContent = '';
+    document.getElementById('auth-email').value = '';
+    document.getElementById('auth-password').value = '';
+    document.getElementById('auth-modal').classList.add('open');
+    document.getElementById('auth-email').focus();
+  }
+
+  function closeAuthModal() {
+    document.getElementById('auth-modal').classList.remove('open');
+  }
+
+  function switchAuthTab(mode) {
+    _authMode = mode;
+    document.querySelectorAll('.modal-tab').forEach((t, i) =>
+      t.classList.toggle('active', (i === 0) === (mode === 'login')));
+    document.getElementById('auth-submit').textContent = mode === 'login' ? 'Sign in' : 'Create account';
+    document.getElementById('auth-error').textContent = '';
+  }
+
+  async function submitAuth() {
+    const email    = document.getElementById('auth-email').value.trim();
+    const password = document.getElementById('auth-password').value;
+    const errEl    = document.getElementById('auth-error');
+    const btn      = document.getElementById('auth-submit');
+    if (!email || !password) { errEl.textContent = 'Email and password required.'; return; }
+
+    btn.disabled = true;
+    errEl.textContent = '';
+    const url = `${getBase()}/auth/${_authMode === 'login' ? 'login' : 'register'}`;
+    try {
+      const res  = await fetch(url, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ email, password }),
+      });
+      const json = await res.json();
+      if (!res.ok) { errEl.textContent = json.detail ?? `Error ${res.status}`; return; }
+      saveAuth(json.access_token, json.email);
+      closeAuthModal();
+      if (document.getElementById('panel-history').classList.contains('active')) loadHistory();
+    } catch (err) {
+      errEl.textContent = `Network error: ${err.message}`;
+    } finally {
+      btn.disabled = false;
+    }
+  }
+
+  // Allow Enter key in auth modal
+  ['auth-email', 'auth-password'].forEach(id => {
+    document.getElementById(id).addEventListener('keydown', e => {
+      if (e.key === 'Enter') submitAuth();
+    });
+  });
+
+  // Close modal on backdrop click
+  document.getElementById('auth-modal').addEventListener('click', function(e) {
+    if (e.target === this) closeAuthModal();
+  });
+
   // ── Tab switching ──────────────────────────────────────────
   function switchTab(name) {
-    document.querySelectorAll('.tab').forEach((t, i) => t.classList.toggle('active', (i === 0) === (name === 'single')));
-    document.getElementById('panel-single').classList.toggle('active', name === 'single');
-    document.getElementById('panel-batch').classList.toggle('active', name === 'batch');
+    const tabs = document.querySelectorAll('.tab');
+    const order = ['single', 'batch', 'history'];
+    tabs.forEach((t, i) => t.classList.toggle('active', order[i] === name));
+    ['single', 'batch', 'history'].forEach(p => {
+      document.getElementById(`panel-${p}`).classList.toggle('active', p === name);
+    });
+    if (name === 'history') loadHistory();
   }
 
   function toggleSettings() {
@@ -371,12 +686,67 @@
 
   // ── Helpers ────────────────────────────────────────────────
   function getHeaders() {
+    const headers = {};
     const key = document.getElementById('api-key').value.trim();
-    return key ? { 'X-API-Key': key } : {};
+    if (key) headers['X-API-Key'] = key;
+    if (_authToken) headers['Authorization'] = `Bearer ${_authToken}`;
+    return headers;
   }
   function getBase() {
     const val = document.getElementById('api-url').value.trim();
     return val ? val.replace(/\/$/, '') : window.location.origin;
+  }
+
+  // ── History ────────────────────────────────────────────────
+  async function loadHistory() {
+    const container = document.getElementById('history-content');
+    if (!_authToken) {
+      container.innerHTML = '<div class="history-empty">Sign in to view your evaluation history. <a href="#" onclick="openAuthModal(); return false">Sign in →</a></div>';
+      return;
+    }
+    container.innerHTML = '<div class="history-empty">Loading…</div>';
+    try {
+      const res = await fetch(`${getBase()}/history`, {
+        headers: { 'Authorization': `Bearer ${_authToken}` },
+      });
+      if (res.status === 401) { clearAuth(); container.innerHTML = '<div class="history-empty">Session expired. <a href="#" onclick="openAuthModal(); return false">Sign in again →</a></div>'; return; }
+      const items = await res.json();
+      if (!items.length) {
+        container.innerHTML = '<div class="history-empty">No evaluations yet. Run your first CV through the Single or Batch tab.</div>';
+        return;
+      }
+      container.innerHTML = items.map(r => {
+        const cls = r.score >= 70 ? 'score-high' : r.score >= 45 ? 'score-mid' : 'score-low';
+        const date = new Date(r.created_at).toLocaleDateString('en-GB', { day: 'numeric', month: 'short', year: 'numeric', hour: '2-digit', minute: '2-digit' });
+        const critique = r.critique.map(c => `<li>${c}</li>`).join('');
+        const contactLinks = [
+          r.contact_email    ? `<a href="mailto:${r.contact_email}">✉ ${r.contact_email}</a>` : '',
+          r.contact_phone    ? `<a href="tel:${r.contact_phone.replace(/\s/g,'')}">📞 ${r.contact_phone}</a>` : '',
+          r.contact_linkedin ? `<a href="${r.contact_linkedin}" target="_blank" rel="noopener">🔗 LinkedIn</a>` : '',
+        ].filter(Boolean).join('');
+        return `
+          <div class="history-row" onclick="toggleHistoryDetail(${r.id})">
+            <div class="history-row-top">
+              <div class="history-score ${cls}">${r.score}</div>
+              <div class="history-meta">
+                <div class="history-filename">${r.filename}</div>
+                <div class="history-date">${date}</div>
+              </div>
+            </div>
+            <div class="history-verdict">${r.verdict ?? ''}</div>
+            <div class="history-detail" id="hd-${r.id}">
+              ${critique ? `<ul class="history-critique">${critique}</ul>` : ''}
+              ${contactLinks ? `<div class="batch-contact">${contactLinks}</div>` : ''}
+            </div>
+          </div>`;
+      }).join('');
+    } catch (err) {
+      container.innerHTML = `<div class="history-empty">Failed to load history: ${err.message}</div>`;
+    }
+  }
+
+  function toggleHistoryDetail(id) {
+    document.getElementById(`hd-${id}`).classList.toggle('open');
   }
 
   function scoreClass(n) {
@@ -543,6 +913,9 @@
 
   setupPersonaChips('chips-single', 'persona-single');
   setupPersonaChips('chips-batch',  'persona-batch');
+
+  // Restore auth state on load
+  renderAccountPill();
 
 </script>
 </body>

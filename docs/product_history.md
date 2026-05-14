@@ -17,15 +17,21 @@ EvalHire Engine is a FastAPI-based CV evaluation service with a browser UI. It a
 ```
 evalhire-engine/
 ├── app/
-│   ├── main.py              # FastAPI routes — /, /health, /evaluate, /evaluate/batch
-│   ├── auth.py              # X-API-Key header authentication
+│   ├── main.py              # FastAPI routes — /, /app, /health, /evaluate, /evaluate/batch, /auth/*, /history
+│   ├── auth.py              # JWT + X-API-Key auth, bcrypt password hashing, get_optional_user / get_current_user deps
+│   ├── database.py          # SQLAlchemy engine + session factory (SQLite locally, PostgreSQL on Railway)
+│   ├── db_models.py         # ORM models: User, EvaluationRecord
 │   ├── models.py            # Pydantic request/response schemas
+│   ├── routers/
+│   │   ├── auth_routes.py   # POST /auth/register, /auth/login, GET /auth/me
+│   │   └── history_routes.py# GET /history
 │   ├── engine/
 │   │   └── logic.py         # LLM evaluation via OpenAI-compatible client
 │   ├── utils/
-│   │   └── extractor.py     # PDF → text via pdfplumber
+│   │   └── extractor.py     # PDF → text + contact info regex extraction
 │   └── static/
-│       └── index.html       # Browser UI (Single CV + Batch tabs)
+│       ├── landing.html     # Marketing landing page (served at /)
+│       └── index.html       # Browser app — Single CV + Batch + History tabs (served at /app)
 ├── tests/
 │   └── test_main.py         # 7 tests covering all endpoints and edge cases
 ├── .github/workflows/
@@ -39,12 +45,17 @@ evalhire-engine/
 
 ### API Endpoints
 
-| Method | Path              | Description                                                           |
-|--------|-------------------|-----------------------------------------------------------------------|
-| GET    | `/`               | Serves the browser UI (`app/static/index.html`)                      |
-| GET    | `/health`         | Health check — `{"status": "active", "engine": "EvalHire v1.0"}`    |
-| POST   | `/evaluate`       | Upload one PDF CV + JD; returns score, critique, verdict             |
-| POST   | `/evaluate/batch` | Upload multiple PDF CVs + JD; returns all results ranked by score    |
+| Method | Path                 | Auth           | Description                                                        |
+|--------|----------------------|----------------|--------------------------------------------------------------------|
+| GET    | `/`                  | None           | Serves the marketing landing page (`app/static/landing.html`)     |
+| GET    | `/app`               | None           | Serves the browser app (`app/static/index.html`)                  |
+| GET    | `/health`            | None           | Health check                                                       |
+| POST   | `/auth/register`     | None           | Create account; returns JWT                                        |
+| POST   | `/auth/login`        | None           | Sign in; returns JWT                                               |
+| GET    | `/auth/me`           | Bearer JWT     | Returns current user                                               |
+| GET    | `/history`           | Bearer JWT     | Returns user's last 200 evaluations, newest first                 |
+| POST   | `/evaluate`          | X-API-Key OR Bearer | Upload one PDF CV + JD; returns score, critique, verdict, contact. Saves to history if Bearer token present. |
+| POST   | `/evaluate/batch`    | X-API-Key OR Bearer | Upload multiple PDF CVs + JD; returns all results ranked by score. Saves to history if Bearer token present. |
 
 ### LLM Integration (`app/engine/logic.py`)
 
@@ -59,7 +70,26 @@ evalhire-engine/
 
 ### Auth (`app/auth.py`)
 
-`X-API-Key` header checked against `API_KEY` env var. If `API_KEY` is unset, auth is silently skipped (dev/CI mode). Returns `401` on mismatch.
+Two authentication mechanisms coexist:
+
+- **X-API-Key** (`verify_api_key` dependency): checked against `API_KEY` env var. Skipped if `API_KEY` unset (dev/CI mode). Used by `/evaluate` and `/evaluate/batch` for backward-compatible CLI/API access.
+- **JWT Bearer** (`get_optional_user` / `get_current_user` dependencies): HS256 tokens signed with `SECRET_KEY` (auto-generated if unset), 30-day expiry. Password hashing uses `bcrypt` directly (not `passlib` — see bug fix below).
+
+The `/evaluate` and `/evaluate/batch` routes accept either auth method. If a valid JWT Bearer token is present, the evaluation is saved to the database. `/history` and `/auth/me` require JWT Bearer only.
+
+### Database (`app/database.py`, `app/db_models.py`)
+
+- **Engine:** SQLAlchemy 2.0, sync sessions.
+- **Local:** SQLite (`evalhire.db` in repo root — gitignored).
+- **Production:** PostgreSQL via `DATABASE_URL` env var (Railway). `postgres://` prefix auto-converted to `postgresql://`.
+- **Tables created** automatically on app startup via `Base.metadata.create_all()`.
+
+**ORM Models:**
+
+| Model              | Key columns                                                                                  |
+|--------------------|----------------------------------------------------------------------------------------------|
+| `User`             | `id`, `email` (unique), `hashed_password`, `created_at`                                     |
+| `EvaluationRecord` | `id`, `user_id` (FK), `created_at`, `filename`, `jd_preview`, `score`, `verdict`, `critique_json`, `persona_used`, `contact_email`, `contact_phone`, `contact_linkedin` |
 
 ### Pydantic Models (`app/models.py`)
 
@@ -72,29 +102,38 @@ evalhire-engine/
 | `BatchResultItem`    | `filename`, `score`, `verdict`, `error: str\|None`, `contact: ContactInfo\|None`                            |
 | `BatchResponse`      | `status`, `jd_preview`, `results: List[BatchResultItem]`                                                    |
 
-### Browser UI (`app/static/index.html`)
+### Browser UI (`app/static/index.html` and `app/static/landing.html`)
 
-Dark-themed single-page app served at `/`. Features:
-- **Single CV tab** — drag-and-drop or click upload, paste JD, get score ring (green/amber/red), verdict, 3-bullet critique, and a "Reach out" contact card (email, phone, LinkedIn) parsed directly from the CV
-- **Batch tab** — upload multiple PDFs, get all candidates ranked by score with colour-coded badges and inline contact links per row
-- **Persona chips** — one-click presets: Founding CTO, VP Sales, Design Lead, Head of Growth, Clinical Lead, or Custom. Selecting a preset fills the persona textarea; Custom unlocks free text
-- **⚙ API settings** collapsible — configurable `X-API-Key` and base URL (defaults to `window.location.origin`)
+**Landing page** (`/`) — Dark-themed marketing page with hero section, 6 feature cards, demo result card, persona pills, footer, and a privacy modal.
+
+**App** (`/app`) — Dark-themed single-page app. Features:
+- **Single CV tab** — drag-and-drop or click upload, paste JD, get score ring, verdict, 3-bullet critique, and "Reach out" contact card
+- **Batch tab** — upload multiple PDFs, get all candidates ranked by score with contact links per row
+- **History tab** — loads saved evaluations via `GET /history`; click any row to expand full critique and contact links
+- **Sign in / Create account modal** — email + password; JWT stored in `localStorage`; account pill shows logged-in email with sign-out
+- **Persona chips** — five presets + Custom
+- **⚙ API settings** collapsible — configurable `X-API-Key` and base URL
+- **Bearer token** sent automatically on all API calls when logged in
 
 ---
 
 ## Tech Stack
 
-| Package              | Version  | Role                                    |
-|----------------------|----------|-----------------------------------------|
-| fastapi              | 0.110.0  | Web framework + static file serving    |
-| uvicorn              | 0.27.1   | ASGI server                             |
-| pdfplumber           | 0.11.0   | PDF text extraction                     |
-| openai               | 1.12.0   | LLM API client (OpenAI-spec)            |
-| python-dotenv        | 1.0.1    | Environment variable loading            |
-| pytest               | 8.0.2    | Testing                                 |
-| python-multipart     | 0.0.9    | Multipart form / file uploads           |
-| httpx                | 0.27.0   | Async HTTP client (TestClient transport)|
-| aiofiles             | 23.2.1   | Async file I/O (required by StaticFiles)|
+| Package                   | Version  | Role                                          |
+|---------------------------|----------|-----------------------------------------------|
+| fastapi                   | 0.110.0  | Web framework + static file serving           |
+| uvicorn                   | 0.27.1   | ASGI server                                   |
+| pdfplumber                | 0.11.0   | PDF text extraction                           |
+| openai                    | 1.12.0   | LLM API client (OpenAI-spec)                  |
+| python-dotenv             | 1.0.1    | Environment variable loading                  |
+| pytest                    | 8.0.2    | Testing                                       |
+| python-multipart          | 0.0.9    | Multipart form / file uploads                 |
+| httpx                     | 0.27.0   | Async HTTP client (TestClient transport)      |
+| aiofiles                  | 23.2.1   | Async file I/O (required by StaticFiles)      |
+| sqlalchemy                | 2.0.28   | ORM + database sessions                       |
+| python-jose[cryptography] | 3.3.0    | JWT creation and validation                   |
+| bcrypt                    | 4.1.3    | Password hashing (replaces passlib)           |
+| email-validator           | 2.1.1    | Pydantic `EmailStr` validation                |
 
 ---
 
@@ -183,6 +222,33 @@ All commits by **Remin Franklin Eliyas** (`remin-franklin-eliyas`).
 ---
 
 ## Change Log
+
+### 2026-05-14 — Accounts, History, Landing Page + bcrypt Fix
+
+#### User Accounts + JWT Auth
+
+- **`app/auth.py`**: Extended with JWT support. `create_access_token(user_id)` issues 30-day HS256 tokens. `get_optional_user` returns the logged-in `User` or `None`. `get_current_user` raises `401` if no valid token. `hash_password` / `verify_password` use `bcrypt` directly (dropped `passlib` — see below).
+- **`app/database.py`** (new): SQLAlchemy engine + `SessionLocal` + `Base`. SQLite locally, PostgreSQL on Railway via `DATABASE_URL`. `postgres://` → `postgresql://` auto-fix.
+- **`app/db_models.py`** (new): `User` ORM model (id, email, hashed_password, created_at). `EvaluationRecord` ORM model (id, user_id FK, created_at, filename, jd_preview, score, verdict, critique_json, persona_used, contact_email/phone/linkedin).
+- **`app/routers/auth_routes.py`** (new): `POST /auth/register` (creates user, returns JWT), `POST /auth/login` (validates credentials, returns JWT), `GET /auth/me` (returns current user).
+- **`app/main.py`**: `Base.metadata.create_all()` on startup. Routers included. Both evaluate routes now accept optional Bearer token and save `EvaluationRecord` to DB when logged in.
+
+#### Evaluation History
+
+- **`app/routers/history_routes.py`** (new): `GET /history` returns last 200 `EvaluationRecord` rows for the authenticated user, ordered newest first.
+- **`app/static/index.html`**: History tab added. Loads `/history` on tab switch. Shows score ring, filename, date, verdict, expandable critique, and contact links per row. Shows login prompt if unauthenticated.
+
+#### Landing Page
+
+- **`app/static/landing.html`** (new): Full dark-themed marketing page. Hero with tagline, 6 feature cards, example result card, persona pills, footer with privacy modal.
+- **`app/main.py`**: `GET /` now serves `landing.html`. `GET /app` serves `index.html` (app moved from `/` to `/app`).
+- **`app/static/index.html`**: Auth modal (sign in / create account), account pill in header with sign-out, Bearer token sent on all API calls when logged in.
+
+#### Bug Fix — passlib + bcrypt 4.x incompatibility
+
+`passlib 1.7.4` is unmaintained and fails with `bcrypt 4.x` due to removal of `bcrypt.__about__`. Replaced `passlib.context.CryptContext` with direct `bcrypt.hashpw` / `bcrypt.checkpw` calls. `passlib[bcrypt]` removed from `requirements.txt`; pinned `bcrypt==4.1.3`.
+
+---
 
 ### 2026-05-14 — Configurable Persona + Contact Info Extraction
 

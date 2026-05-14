@@ -1,0 +1,447 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>EvalHire — AI CV Screening That Actually Works</title>
+  <style>
+    *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+
+    :root {
+      --bg: #0a0a0a;
+      --surface: #111;
+      --border: #1e1e1e;
+      --text: #e8e8e8;
+      --muted: #666;
+      --accent: #fff;
+      --green: #22c55e;
+      --amber: #f59e0b;
+      --red: #ef4444;
+    }
+
+    body {
+      background: var(--bg);
+      color: var(--text);
+      font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif;
+      min-height: 100vh;
+    }
+
+    /* ── Nav ─────────────────────────────────────────────── */
+    nav {
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      padding: 20px 40px;
+      border-bottom: 1px solid var(--border);
+    }
+    .logo { font-weight: 800; font-size: 1.1rem; letter-spacing: -0.02em; }
+    .logo span { color: var(--muted); font-weight: 400; }
+    nav a {
+      color: var(--muted);
+      text-decoration: none;
+      font-size: 0.88rem;
+      margin-left: 24px;
+      transition: color 0.15s;
+    }
+    nav a:hover { color: var(--text); }
+    .nav-cta {
+      background: var(--accent);
+      color: #000 !important;
+      padding: 8px 18px;
+      border-radius: 6px;
+      font-weight: 600;
+      font-size: 0.85rem !important;
+    }
+    .nav-cta:hover { background: #ddd !important; }
+
+    /* ── Hero ────────────────────────────────────────────── */
+    .hero {
+      max-width: 760px;
+      margin: 0 auto;
+      padding: 100px 24px 80px;
+      text-align: center;
+    }
+    .badge {
+      display: inline-block;
+      padding: 5px 12px;
+      border: 1px solid #2a2a2a;
+      border-radius: 20px;
+      font-size: 0.75rem;
+      color: var(--muted);
+      letter-spacing: 0.06em;
+      text-transform: uppercase;
+      margin-bottom: 28px;
+    }
+    h1 {
+      font-size: clamp(2rem, 5vw, 3.4rem);
+      font-weight: 800;
+      line-height: 1.1;
+      letter-spacing: -0.03em;
+      margin-bottom: 24px;
+    }
+    h1 em {
+      font-style: normal;
+      background: linear-gradient(90deg, #fff 0%, #888 100%);
+      -webkit-background-clip: text;
+      -webkit-text-fill-color: transparent;
+      background-clip: text;
+    }
+    .hero-sub {
+      font-size: 1.1rem;
+      color: var(--muted);
+      line-height: 1.7;
+      max-width: 540px;
+      margin: 0 auto 40px;
+    }
+    .hero-actions {
+      display: flex;
+      gap: 12px;
+      justify-content: center;
+      flex-wrap: wrap;
+    }
+    .btn-primary {
+      display: inline-block;
+      background: #fff;
+      color: #000;
+      padding: 14px 28px;
+      border-radius: 8px;
+      font-weight: 700;
+      font-size: 0.95rem;
+      text-decoration: none;
+      transition: background 0.15s;
+    }
+    .btn-primary:hover { background: #ddd; }
+    .btn-ghost {
+      display: inline-block;
+      background: transparent;
+      color: var(--muted);
+      padding: 14px 24px;
+      border-radius: 8px;
+      border: 1px solid var(--border);
+      font-size: 0.9rem;
+      text-decoration: none;
+      transition: color 0.15s, border-color 0.15s;
+    }
+    .btn-ghost:hover { color: var(--text); border-color: #444; }
+
+    /* ── Features ────────────────────────────────────────── */
+    .features {
+      max-width: 960px;
+      margin: 0 auto;
+      padding: 60px 24px 80px;
+      display: grid;
+      grid-template-columns: repeat(auto-fit, minmax(260px, 1fr));
+      gap: 20px;
+    }
+    .feature {
+      background: var(--surface);
+      border: 1px solid var(--border);
+      border-radius: 12px;
+      padding: 28px;
+    }
+    .feature-icon {
+      font-size: 1.6rem;
+      margin-bottom: 14px;
+    }
+    .feature h3 {
+      font-size: 0.95rem;
+      font-weight: 700;
+      margin-bottom: 8px;
+    }
+    .feature p {
+      font-size: 0.83rem;
+      color: var(--muted);
+      line-height: 1.6;
+    }
+
+    /* ── Demo card ───────────────────────────────────────── */
+    .demo-section {
+      max-width: 680px;
+      margin: 0 auto;
+      padding: 0 24px 80px;
+    }
+    .demo-section h2 {
+      font-size: 1.4rem;
+      font-weight: 700;
+      text-align: center;
+      margin-bottom: 32px;
+    }
+    .demo-card {
+      background: var(--surface);
+      border: 1px solid var(--border);
+      border-radius: 14px;
+      padding: 28px;
+    }
+    .demo-header {
+      display: flex;
+      align-items: center;
+      gap: 16px;
+      margin-bottom: 20px;
+    }
+    .demo-score {
+      width: 56px; height: 56px;
+      border-radius: 50%;
+      border: 3px solid var(--green);
+      display: flex; align-items: center; justify-content: center;
+      font-size: 1.1rem;
+      font-weight: 800;
+      color: var(--green);
+      flex-shrink: 0;
+    }
+    .demo-filename { font-size: 0.82rem; color: var(--muted); margin-bottom: 3px; }
+    .demo-verdict  { font-size: 0.9rem; font-weight: 600; }
+    .demo-critique {
+      list-style: none;
+      margin-bottom: 18px;
+    }
+    .demo-critique li {
+      font-size: 0.82rem;
+      color: var(--muted);
+      padding: 6px 0;
+      border-bottom: 1px solid var(--border);
+      line-height: 1.5;
+    }
+    .demo-critique li::before { content: "· "; color: #444; }
+    .demo-contact {
+      display: flex;
+      gap: 14px;
+      flex-wrap: wrap;
+    }
+    .demo-contact a {
+      font-size: 0.8rem;
+      color: #9ecfff;
+      text-decoration: none;
+    }
+    .demo-contact a:hover { color: #fff; }
+
+    /* ── Personas ─────────────────────────────────────────── */
+    .personas-section {
+      max-width: 860px;
+      margin: 0 auto;
+      padding: 0 24px 80px;
+      text-align: center;
+    }
+    .personas-section h2 {
+      font-size: 1.4rem;
+      font-weight: 700;
+      margin-bottom: 10px;
+    }
+    .personas-section p {
+      color: var(--muted);
+      font-size: 0.88rem;
+      margin-bottom: 28px;
+    }
+    .persona-grid {
+      display: flex;
+      flex-wrap: wrap;
+      gap: 10px;
+      justify-content: center;
+    }
+    .persona-pill {
+      padding: 8px 16px;
+      border-radius: 20px;
+      border: 1px solid #2a2a2a;
+      background: var(--surface);
+      color: #aaa;
+      font-size: 0.83rem;
+    }
+
+    /* ── Footer ─────────────────────────────────────────── */
+    footer {
+      border-top: 1px solid var(--border);
+      padding: 28px 40px;
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      flex-wrap: wrap;
+      gap: 12px;
+    }
+    .footer-brand { font-size: 0.82rem; color: var(--muted); }
+    .footer-links { display: flex; gap: 20px; }
+    .footer-links a { font-size: 0.8rem; color: var(--muted); text-decoration: none; }
+    .footer-links a:hover { color: var(--text); }
+
+    /* ── Privacy modal ───────────────────────────────────── */
+    .modal-backdrop {
+      display: none;
+      position: fixed; inset: 0;
+      background: rgba(0,0,0,0.75);
+      z-index: 100;
+      align-items: center;
+      justify-content: center;
+      padding: 24px;
+    }
+    .modal-backdrop.open { display: flex; }
+    .modal {
+      background: #111;
+      border: 1px solid #2a2a2a;
+      border-radius: 14px;
+      padding: 32px;
+      max-width: 560px;
+      width: 100%;
+      max-height: 80vh;
+      overflow-y: auto;
+    }
+    .modal h2 { font-size: 1.1rem; font-weight: 700; margin-bottom: 16px; }
+    .modal p, .modal li {
+      font-size: 0.85rem;
+      color: #aaa;
+      line-height: 1.7;
+      margin-bottom: 10px;
+    }
+    .modal ul { padding-left: 18px; margin-bottom: 10px; }
+    .modal-close {
+      margin-top: 20px;
+      background: #222;
+      border: 1px solid #333;
+      color: #ccc;
+      padding: 8px 18px;
+      border-radius: 6px;
+      cursor: pointer;
+      font-size: 0.85rem;
+    }
+    .modal-close:hover { background: #2a2a2a; }
+  </style>
+</head>
+<body>
+
+  <nav>
+    <div class="logo">EvalHire <span>Engine</span></div>
+    <div>
+      <a href="/app">Sign in</a>
+      <a href="/app" class="nav-cta">Start screening →</a>
+    </div>
+  </nav>
+
+  <!-- ── Hero ───────────────────────────────────────────────── -->
+  <section class="hero">
+    <div class="badge">AI-Powered CV Screening</div>
+    <h1>Hire the best candidate,<br><em>not the best CV writer.</em></h1>
+    <p class="hero-sub">
+      Upload a CV, paste a job description, get a scored evaluation with critique and a direct contact card — in seconds.
+      No HR gatekeeping. No 5-years-experience-for-a-2-year-old-technology.
+    </p>
+    <div class="hero-actions">
+      <a href="/app" class="btn-primary">Start screening CVs →</a>
+      <a href="https://github.com/remin-franklin-eliyas/evalhire-engine" target="_blank" rel="noopener" class="btn-ghost">View on GitHub</a>
+    </div>
+  </section>
+
+  <!-- ── Features ───────────────────────────────────────────── -->
+  <section class="features">
+    <div class="feature">
+      <div class="feature-icon">⚡</div>
+      <h3>Scored in seconds</h3>
+      <p>0–100 startup fit score with a 3-bullet critique and a one-sentence hire/no-hire verdict — every time, instantly.</p>
+    </div>
+    <div class="feature">
+      <div class="feature-icon">🎭</div>
+      <h3>Configurable persona</h3>
+      <p>Evaluate through the eyes of a Founding CTO, VP Sales, Design Lead, or write your own persona. The LLM adapts its rubric accordingly.</p>
+    </div>
+    <div class="feature">
+      <div class="feature-icon">📇</div>
+      <h3>Contact info extracted</h3>
+      <p>Email, phone, and LinkedIn parsed directly from the PDF so you can reach the right candidate immediately — no chasing HR for details.</p>
+    </div>
+    <div class="feature">
+      <div class="feature-icon">📋</div>
+      <h3>Full screening history</h3>
+      <p>Every evaluation saved to your account. Come back tomorrow, compare candidates, sort by score, and pick up exactly where you left off.</p>
+    </div>
+    <div class="feature">
+      <div class="feature-icon">📦</div>
+      <h3>Batch mode</h3>
+      <p>Upload 10 CVs at once. Get them all ranked by score in one request. Great for screening an entire applicant pool in under a minute.</p>
+    </div>
+    <div class="feature">
+      <div class="feature-icon">🔌</div>
+      <h3>REST API</h3>
+      <p>Headless API access via X-API-Key. Plug it into your ATS, Notion database, or any internal tool with a simple POST request.</p>
+    </div>
+  </section>
+
+  <!-- ── Demo result card ────────────────────────────────────── -->
+  <section class="demo-section">
+    <h2>What a result looks like</h2>
+    <div class="demo-card">
+      <div class="demo-header">
+        <div class="demo-score">87</div>
+        <div>
+          <div class="demo-filename">senior_engineer_cv.pdf</div>
+          <div class="demo-verdict">Strong hire — ship it, interview fast before someone else does.</div>
+        </div>
+      </div>
+      <ul class="demo-critique">
+        <li>Shipped three production ML systems end-to-end with measurable impact — clear technical depth and ownership.</li>
+        <li>Moved from seed-stage to Series B in 18 months; understands what velocity actually looks like.</li>
+        <li>No evidence of cross-functional leadership yet — worth probing in the loop interview.</li>
+      </ul>
+      <div class="demo-contact">
+        <a href="#">✉ jane@example.com</a>
+        <a href="#">📞 +44 7700 900123</a>
+        <a href="#">🔗 LinkedIn</a>
+      </div>
+    </div>
+  </section>
+
+  <!-- ── Persona section ─────────────────────────────────────── -->
+  <section class="personas-section">
+    <h2>Built-in evaluation personas</h2>
+    <p>One click to switch the lens. Or write your own in plain English.</p>
+    <div class="persona-grid">
+      <div class="persona-pill">🚀 Founding CTO</div>
+      <div class="persona-pill">💼 VP Sales</div>
+      <div class="persona-pill">🎨 Design Lead</div>
+      <div class="persona-pill">📣 Head of Growth</div>
+      <div class="persona-pill">🏥 Clinical Lead</div>
+      <div class="persona-pill">✏️ Custom persona</div>
+    </div>
+  </section>
+
+  <!-- ── Footer ─────────────────────────────────────────────── -->
+  <footer>
+    <div class="footer-brand">© 2026 EvalHire Engine</div>
+    <div class="footer-links">
+      <a href="/app">App</a>
+      <a href="https://github.com/remin-franklin-eliyas/evalhire-engine" target="_blank" rel="noopener">GitHub</a>
+      <a href="#" onclick="document.getElementById('privacy-modal').classList.add('open'); return false;">Privacy</a>
+    </div>
+  </footer>
+
+  <!-- ── Privacy modal ──────────────────────────────────────── -->
+  <div class="modal-backdrop" id="privacy-modal">
+    <div class="modal">
+      <h2>Privacy &amp; Data Handling</h2>
+      <p><strong>What we collect</strong></p>
+      <ul>
+        <li>Your email address and a bcrypt-hashed password when you create an account.</li>
+        <li>The text extracted from CV PDFs you upload, along with evaluation results (score, critique, verdict), stored against your account for your history.</li>
+      </ul>
+      <p><strong>What we do NOT store</strong></p>
+      <ul>
+        <li>Raw PDF files are never stored on disk. They are read into memory, processed, and discarded.</li>
+        <li>We do not sell or share your data with any third party.</li>
+      </ul>
+      <p><strong>Third-party services</strong></p>
+      <ul>
+        <li>CV text and the job description are sent to <strong>GitHub Models</strong> (Microsoft Azure inference) to generate the evaluation. This is subject to <a href="https://docs.github.com/en/site-policy/privacy-policies/github-privacy-statement" target="_blank" rel="noopener" style="color:#9ecfff">GitHub's privacy policy</a>.</li>
+        <li>The application is hosted on <strong>Railway.app</strong>.</li>
+      </ul>
+      <p><strong>Candidate data</strong></p>
+      <p>You are responsible for ensuring you have the right to upload and process the CVs of candidates in your jurisdiction. Do not upload CVs without a lawful basis under applicable data protection law (e.g. GDPR, UK GDPR).</p>
+      <p><strong>Data retention</strong></p>
+      <p>Evaluation history is retained until you delete your account. Contact us to request deletion.</p>
+      <button class="modal-close" onclick="document.getElementById('privacy-modal').classList.remove('open')">Close</button>
+    </div>
+  </div>
+
+  <script>
+    // Close modal on backdrop click
+    document.getElementById('privacy-modal').addEventListener('click', function(e) {
+      if (e.target === this) this.classList.remove('open');
+    });
+  </script>
+
+</body>
+</html>
