@@ -8,7 +8,7 @@
 
 ## Overview
 
-EvalHire Engine is a FastAPI-based CV evaluation service with a browser UI. It accepts PDF CVs, extracts their text, scores them against a job description using an LLM, and automatically extracts the candidate's contact details (email, phone, LinkedIn) from the CV text. The evaluation is driven by a fully configurable persona — defaulting to a "Founding CTO of a high-growth AI startup" (scoring on **High Agency**, **Technical Depth**, and **Velocity**) — but any persona can be supplied via the API or the browser UI. Results include a 0–100 score, a 3-bullet critique, a one-sentence verdict, and a contact card for reaching out directly.
+EvalHire Engine is a FastAPI-based CV evaluation service with a browser UI. It accepts PDF CVs, extracts their text, scores them against a job description using an LLM, and automatically extracts the candidate's contact details (email, phone, LinkedIn) from the CV text. Choose from **15 curated evaluator personas** (Founding CTO, YC Partner, Google L6 Engineer, Seed-stage VC, and more) or write a custom prompt. Each persona can define named evaluation dimensions (e.g. Agency, Technical Depth, Velocity) scored 0–10 by the LLM. Results include a 0–100 overall score, per-dimension scores, a 3-bullet critique, a one-sentence verdict, a percentile rank, and a contact card. The `/compare` endpoint ranks 2–10 candidates head-to-head in a single authenticated request.
 
 ---
 
@@ -17,23 +17,26 @@ EvalHire Engine is a FastAPI-based CV evaluation service with a browser UI. It a
 ```
 evalhire-engine/
 ├── app/
-│   ├── main.py              # FastAPI routes — /, /app, /health, /evaluate, /evaluate/batch, /auth/*, /history
+│   ├── main.py              # FastAPI routes — /, /app, /health, /evaluate, /evaluate/batch, /compare, /auth/*, /history, /personas
 │   ├── auth.py              # JWT + X-API-Key auth, bcrypt password hashing, get_optional_user / get_current_user deps
 │   ├── database.py          # SQLAlchemy engine + session factory (SQLite locally, PostgreSQL on Railway)
-│   ├── db_models.py         # ORM models: User, EvaluationRecord
+│   ├── db_models.py         # ORM models: User, EvaluationRecord, Persona
 │   ├── models.py            # Pydantic request/response schemas
 │   ├── routers/
-│   │   ├── auth_routes.py   # POST /auth/register, /auth/login, GET /auth/me
-│   │   └── history_routes.py# GET /history
+│   │   ├── auth_routes.py   # POST /auth/register, /auth/login, GET /auth/me, DELETE /auth/me
+│   │   ├── history_routes.py# GET /history (paginated), POST /history/purge
+│   │   └── persona_routes.py# GET /personas, GET /personas/{id}, POST /personas
 │   ├── engine/
-│   │   └── logic.py         # LLM evaluation via OpenAI-compatible client
+│   │   ├── logic.py         # LLM evaluation (multi-provider: GitHub Models / OpenAI / Anthropic)
+│   │   └── personas_seed.py # 15 curated system personas — seeded on startup
 │   ├── utils/
 │   │   └── extractor.py     # PDF → text + contact info regex extraction
 │   └── static/
 │       ├── landing.html     # Marketing landing page (served at /)
-│       └── index.html       # Browser app — Single CV + Batch + History tabs (served at /app)
+│       └── index.html       # Browser app — Single CV + Batch + Compare + History tabs (served at /app)
 ├── tests/
-│   └── test_main.py         # 7 tests covering all endpoints and edge cases
+│   ├── test_main.py         # Core endpoint tests
+│   └── test_personas.py     # 15 Phase 1 tests covering /personas and /compare
 ├── .github/workflows/
 │   └── ci.yml               # GitHub Actions CI pipeline
 ├── .devcontainer/
@@ -45,26 +48,37 @@ evalhire-engine/
 
 ### API Endpoints
 
-| Method | Path                 | Auth           | Description                                                        |
-|--------|----------------------|----------------|--------------------------------------------------------------------|
-| GET    | `/`                  | None           | Serves the marketing landing page (`app/static/landing.html`)     |
-| GET    | `/app`               | None           | Serves the browser app (`app/static/index.html`)                  |
-| GET    | `/health`            | None           | Health check                                                       |
-| POST   | `/auth/register`     | None           | Create account; returns JWT                                        |
-| POST   | `/auth/login`        | None           | Sign in; returns JWT                                               |
-| GET    | `/auth/me`           | Bearer JWT     | Returns current user                                               |
+| Method | Path                 | Auth                | Description                                                                                            |
+|--------|----------------------|---------------------|--------------------------------------------------------------------------------------------------------|
+| GET    | `/`                  | None                | Serves the marketing landing page (`app/static/landing.html`)                                         |
+| GET    | `/app`               | None                | Serves the browser app (`app/static/index.html`)                                                      |
+| GET    | `/health`            | None                | Health check                                                                                           |
+| POST   | `/auth/register`     | None                | Create account; returns JWT                                                                            |
+| POST   | `/auth/login`        | None                | Sign in; returns JWT                                                                                   |
+| GET    | `/auth/me`           | Bearer JWT          | Returns current user                                                                                   |
+| DELETE | `/auth/me`           | Bearer JWT          | Permanently deletes the account and all associated history                                             |
+| GET    | `/history`           | Bearer JWT          | Returns user's evaluations paginated (`skip`, `limit`); newest first                                  |
+| POST   | `/history/purge`     | Bearer JWT          | Deletes all history records for the user; returns `{ "deleted": N }`                                  |
+| POST   | `/evaluate`          | X-API-Key OR Bearer | Upload one PDF CV + JD; returns score, dimensions, percentile, critique, verdict, contact. Saves to history if Bearer present. |
+| POST   | `/evaluate/batch`    | X-API-Key OR Bearer | Upload multiple PDF CVs + JD; returns all results ranked by score. Saves to history if Bearer present. |
+| GET    | `/personas`          | None                | List all public personas sorted by `use_count` desc; paginated                                        |
+| GET    | `/personas/{id}`     | None                | Get a single public persona by ID                                                                      |
+| POST   | `/personas`          | Bearer JWT          | Create a custom persona; returns `PersonaResponse`                                                     |
+| POST   | `/compare`           | Bearer JWT          | Evaluate and rank 2–10 CVs in one request; returns sorted results with per-candidate dimensions. Does not write to history. |
 | GET    | `/history`           | Bearer JWT     | Returns user's last 200 evaluations, newest first                 |
 | POST   | `/evaluate`          | X-API-Key OR Bearer | Upload one PDF CV + JD; returns score, critique, verdict, contact. Saves to history if Bearer token present. |
 | POST   | `/evaluate/batch`    | X-API-Key OR Bearer | Upload multiple PDF CVs + JD; returns all results ranked by score. Saves to history if Bearer token present. |
 
 ### LLM Integration (`app/engine/logic.py`)
 
-- **Provider:** GitHub Models (free tier)
-- **Endpoint:** `https://models.inference.ai.azure.com`
-- **Model:** `Llama-3.3-70B-Instruct`
+- **Provider:** Configurable via `MODEL_PROVIDER` env var:
+  - `github` (default) — Llama 3.3 70B Instruct at `https://models.inference.ai.azure.com`
+  - `openai` — GPT-4o at `https://api.openai.com/v1`
+  - `anthropic` — Claude 3.5 Sonnet at `https://api.anthropic.com/v1`
 - **Auth:** `MODEL_TOKEN` env var (`or "not-configured"` fallback so CI import doesn't crash)
 - **CV truncation:** 12,000 chars before sending (~3k tokens, within Llama 3's 8k context window)
 - **Temperature:** `0.1` (deterministic scoring)
+- **Dimension scoring:** When `dimension_names` is passed, the system prompt includes a `"dimensions"` key in the JSON schema with the persona's named axes (each scored 0–10).
 - **JSON parsing:** Strips markdown code fences before `json.loads()` to handle model wrapping output in ` ```json ``` `
 - **Error handling:** All exceptions raise `RuntimeError` → caught in route as `502 Bad Gateway`
 
@@ -86,32 +100,38 @@ The `/evaluate` and `/evaluate/batch` routes accept either auth method. If a val
 
 **ORM Models:**
 
-| Model              | Key columns                                                                                  |
-|--------------------|----------------------------------------------------------------------------------------------|
-| `User`             | `id`, `email` (unique), `hashed_password`, `created_at`                                     |
-| `EvaluationRecord` | `id`, `user_id` (FK), `created_at`, `filename`, `jd_preview`, `score`, `verdict`, `critique_json`, `persona_used`, `contact_email`, `contact_phone`, `contact_linkedin` |
+| Model              | Key columns                                                                                                                                                                                           |
+|--------------------|-------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------|
+| `User`             | `id`, `email` (unique), `hashed_password`, `tier` (`free`/`pro`), `created_at`                                                                                                                       |
+| `Persona`          | `id`, `name`, `description`, `prompt`, `dimensions` (JSON string), `author_id` (FK, null = system persona), `is_public`, `is_system`, `use_count`, `created_at`                                      |
+| `EvaluationRecord` | `id`, `user_id` (FK), `created_at`, `filename`, `jd_preview`, `score`, `verdict`, `critique_json`, `persona_used`, `persona_id` (FK), `dimensions_json`, `percentile`, `contact_email`, `contact_phone`, `contact_linkedin` |
 
 ### Pydantic Models (`app/models.py`)
 
-| Class                | Fields                                                                                                      |
-|----------------------|-------------------------------------------------------------------------------------------------------------|
-| `ContactInfo`        | `email: str\|None`, `phone: str\|None`, `linkedin: str\|None`                                               |
-| `EvaluationResult`   | `score: int (0–100)`, `critique: List[str]`, `verdict: str`                                                 |
-| `EvaluationData`     | `filename: str`, `analysis: EvaluationResult`, `contact: ContactInfo\|None`                                 |
-| `EvaluationResponse` | `status: str`, `data: EvaluationData`                                                                       |
-| `BatchResultItem`    | `filename`, `score`, `verdict`, `error: str\|None`, `contact: ContactInfo\|None`                            |
-| `BatchResponse`      | `status`, `jd_preview`, `results: List[BatchResultItem]`                                                    |
+| Class                | Fields                                                                                                                            |
+|----------------------|-----------------------------------------------------------------------------------------------------------------------------------|
+| `ContactInfo`        | `email: str\|None`, `phone: str\|None`, `linkedin: str\|None`                                                                     |
+| `EvaluationResult`   | `score: int (0–100)`, `critique: List[str]`, `verdict: str`, `dimensions: Dict[str, int] = {}`                                   |
+| `EvaluationData`     | `filename: str`, `analysis: EvaluationResult`, `contact: ContactInfo\|None`                                                       |
+| `EvaluationResponse` | `status: str`, `data: EvaluationData`, `percentile: int\|None`                                                                    |
+| `BatchResultItem`    | `filename`, `score`, `verdict`, `error: str\|None`, `contact: ContactInfo\|None`                                                  |
+| `BatchResponse`      | `status`, `jd_preview`, `results: List[BatchResultItem]`                                                                          |
+| `PersonaCreate`      | `name: str`, `description: str\|None`, `prompt: str`, `dimensions: List[str] = []`, `is_public: bool = True`                     |
+| `PersonaResponse`    | `id`, `name`, `description`, `prompt`, `dimensions`, `is_public`, `is_system`, `author_id`, `use_count`, `created_at`            |
+| `CompareResultItem`  | `filename`, `score`, `verdict`, `dimensions: Dict[str, int] = {}`, `contact: ContactInfo\|None`, `error: str\|None`              |
+| `CompareResponse`    | `status`, `jd_preview`, `persona_name: str\|None`, `results: List[CompareResultItem]`                                            |
 
 ### Browser UI (`app/static/index.html` and `app/static/landing.html`)
 
-**Landing page** (`/`) — Dark-themed marketing page with hero section, 6 feature cards, demo result card, persona pills, footer, and a privacy modal.
+**Landing page** (`/`) — Dark-themed marketing page with hero section, "Persona Marketplace" / "Dimension scoring" / "Candidate comparison" feature cards, demo result card with dimension score bars and "Top 8%" percentile line, all 15 persona pills + Custom, footer, and a privacy modal.
 
 **App** (`/app`) — Dark-themed single-page app. Features:
-- **Single CV tab** — drag-and-drop or click upload, paste JD, get score ring, verdict, 3-bullet critique, and "Reach out" contact card
+- **Single CV tab** — drag-and-drop or click upload, paste JD, get score ring, verdict, 3-bullet critique, dimension score bars, percentile badge, and "Reach out" contact card
 - **Batch tab** — upload multiple PDFs, get all candidates ranked by score with contact links per row
-- **History tab** — loads saved evaluations via `GET /history`; click any row to expand full critique and contact links
+- **Compare tab** — upload 2–10 PDFs (requires sign-in), sends to `POST /compare`, renders ranked cards with per-candidate dimension bars
+- **History tab** — paginated via `GET /history`; each row shows dimension tag chips and percentile badge inline; click to expand full critique and contact links
 - **Sign in / Create account modal** — email + password; JWT stored in `localStorage`; account pill shows logged-in email with sign-out
-- **Persona chips** — five presets + Custom
+- **Persona chips** — dynamically loaded from `GET /personas` on page load; clicking a system persona sends `persona_id`; Custom chip sends raw text
 - **⚙ API settings** collapsible — configurable `X-API-Key` and base URL
 - **Bearer token** sent automatically on all API calls when logged in
 
@@ -222,6 +242,65 @@ All commits by **Remin Franklin Eliyas** (`remin-franklin-eliyas`).
 ---
 
 ## Change Log
+
+### 2026-05-16 — Phase 1: Persona Marketplace, Dimension Scoring, Percentile Ranking, Candidate Comparison
+
+#### Persona Marketplace
+
+- **`app/db_models.py`**: New `Persona` ORM model (`id`, `name`, `description`, `prompt`, `dimensions` JSON string, `author_id` FK nullable — null = system persona, `is_public`, `is_system`, `use_count`, `created_at`). `User` gains a `personas` relationship with cascade delete. `EvaluationRecord` gains `persona_id` FK, `dimensions_json`, and `percentile` columns. Three new `ALTER TABLE` inline migrations run idempotently on startup.
+- **`app/engine/personas_seed.py`** (new): 15 curated system personas, each with name, description, prompt, and 3 dimension names. `seed_system_personas(db)` is idempotent — checks by name, inserts only missing rows. Called on every startup.
+- **`app/routers/persona_routes.py`** (new): `GET /personas` (sorted by `use_count` desc, paginated), `GET /personas/{id}` (404 if not found or not public), `POST /personas` (requires Bearer auth, validates name + prompt).
+- **`app/main.py`**: `_resolve_persona(persona_id, persona_text, db)` helper resolves to `(prompt, dimension_names, persona_obj | None)`. `_compute_percentile(persona_id, score, db)` returns the candidate's percentile rank once ≥5 records exist for that persona, else `None`. `/evaluate` now accepts `persona_id` form field; increments `use_count`; saves `persona_id`, `dimensions_json`, and `percentile` to `EvaluationRecord`.
+
+#### Dimension Scoring
+
+- **`app/engine/logic.py`**: `_build_system_prompt` now accepts an optional `dimension_names` list and appends a `"dimensions"` key to the LLM JSON schema instruction with the persona-specific axis names. `evaluate_cv()` passes `dimension_names` through; result always contains a `dimensions: {}` key.
+- **`app/models.py`**: `EvaluationResult.dimensions: Dict[str, int] = {}`. `EvaluationResponse.percentile: int | None = None`. New `PersonaCreate`, `PersonaResponse`, `CompareResultItem`, `CompareResponse` schemas added.
+
+#### Candidate Comparison Mode
+
+- **`app/main.py`**: New `POST /compare` endpoint. Requires Bearer auth. Accepts 2–10 PDF files + JD + optional `persona` / `persona_id`. Processes all CVs synchronously; skips non-PDFs with error. Returns `CompareResponse` sorted by score desc. Increments persona `use_count` by number of successful evals. Does **not** write to evaluation history.
+
+#### UI Updates
+
+- **`app/static/landing.html`**: Stats updated to "15+ curated personas". Feature cards replaced with Persona Marketplace / Dimension scoring / Candidate comparison. Demo result card now shows persona tag, dimension score bars (Agency 9, Technical Depth 8, Velocity 7), and "Top 8%" percentile line. All 15 persona pills displayed in the personas section.
+- **`app/static/index.html`**: Compare tab added (auth-gated). Persona chips now loaded dynamically from `GET /personas` on page load — clicking a system persona sends `persona_id` instead of raw text. `renderSingle` shows percentile badge + dimension bars. `renderCompare` renders ranked cards with dimensions. History rows show dimension chips and percentile badge.
+
+#### Tests
+
+- **`tests/test_personas.py`** (new): 15 tests covering `GET /personas` (list, pagination), `POST /personas` (success, auth required, validation), `GET /personas/{id}` (success, 404), `/evaluate` with `persona_id` (use_count increment, dimensions in history response, 404 for invalid id), `/compare` (auth required, min 2 files, response shape + score sorting, with `persona_id`, non-PDF skipping).
+
+---
+
+### 2026-05-14 — Phase 0: Rate Limits, Multi-provider LLM, Async Batch, Account Deletion, History Purge, Pagination
+
+#### Rate Limiting
+
+- **`app/main.py`**: `FREE_TIER_MONTHLY_LIMIT` env var (default `20`). `/evaluate` and `/evaluate/batch` check the authenticated user's call count for the current calendar month against the limit. Exceeding it returns `429 Too Many Requests`.
+- **`app/db_models.py`**: `User` gains a `tier TEXT NOT NULL DEFAULT 'free'` column via inline `ALTER TABLE` migration on startup.
+
+#### Multi-provider LLM
+
+- **`app/engine/logic.py`**: `MODEL_PROVIDER` env var switches between `github` (default — Llama 3.3 70B via `https://models.inference.ai.azure.com`), `openai` (GPT-4o via `https://api.openai.com/v1`), and `anthropic` (Claude 3.5 Sonnet via `https://api.anthropic.com/v1`). All three use the OpenAI Python SDK with provider-specific `base_url` and model name.
+
+#### Async Batch with Job Polling
+
+- **`app/main.py`**: `/evaluate/batch` now processes CVs concurrently via `asyncio.gather`, bounded by a semaphore to avoid overwhelming the LLM API. Aggregate upload size is capped — oversized requests return `413`.
+
+#### Account Deletion + History Purge
+
+- **`app/routers/auth_routes.py`**: `DELETE /auth/me` — deletes the authenticated user and all associated `EvaluationRecord` rows (cascade). Returns `204 No Content`.
+- **`app/routers/history_routes.py`**: `POST /history/purge` — deletes all `EvaluationRecord` rows for the authenticated user; returns `{ "deleted": N }`.
+
+#### Paginated History
+
+- **`app/routers/history_routes.py`**: `GET /history` now accepts `skip: int = 0` and `limit: int = 50` query parameters (max `limit` capped at `200`). Previously returned a fixed last-200 slice.
+
+#### Test Updates
+
+- **`tests/test_main.py`**: Updated to cover Phase 0 changes including rate limit responses and paginated history.
+
+---
 
 ### 2026-05-14 — Accounts, History, Landing Page + bcrypt Fix
 
