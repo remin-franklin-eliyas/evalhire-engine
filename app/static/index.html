@@ -211,8 +211,8 @@
       font-size: 0.86rem;
     }
 
-    #panel-single, #panel-batch, #panel-history { display: none; }
-    #panel-single.active, #panel-batch.active, #panel-history.active { display: block; }
+    #panel-single, #panel-batch, #panel-compare, #panel-history { display: none; }
+    #panel-single.active, #panel-batch.active, #panel-compare.active, #panel-history.active { display: block; }
 
     /* ── Auth modal ────────────────────────────────────────── */
     .modal-backdrop {
@@ -396,6 +396,26 @@
     .settings-toggle:hover { color: #888; }
     #settings-panel { display: none; margin-bottom: 18px; }
     #settings-panel.open { display: block; }
+
+    /* ── Dimension bars ──────────────────────────────────── */
+    .dim-section { margin: 16px 0 4px; }
+    .dim-row { display: flex; align-items: center; gap: 10px; margin-bottom: 7px; }
+    .dim-label { font-size: 0.75rem; color: #666; width: 130px; flex-shrink: 0; }
+    .dim-bar { flex: 1; height: 4px; background: #1e1e1e; border-radius: 2px; overflow: hidden; }
+    .dim-fill-green  { height: 100%; background: #22c55e; border-radius: 2px; }
+    .dim-fill-yellow { height: 100%; background: #f59e0b; border-radius: 2px; }
+    .dim-fill-red    { height: 100%; background: #f87171; border-radius: 2px; }
+    .dim-val { font-size: 0.75rem; color: #555; width: 16px; text-align: right; flex-shrink: 0; }
+    .percentile-badge {
+      display: block;
+      font-size: 0.74rem; color: #4ade80;
+      background: rgba(34,197,94,0.07);
+      border: 1px solid rgba(34,197,94,0.18);
+      border-radius: 6px;
+      padding: 5px 12px;
+      margin: 10px 0 2px;
+      text-align: center;
+    }
   </style>
 </head>
 <body>
@@ -432,6 +452,7 @@
   <div class="tabs">
     <button class="tab active" onclick="switchTab('single')">Single CV</button>
     <button class="tab"        onclick="switchTab('batch')">Batch</button>
+    <button class="tab"        onclick="switchTab('compare')">Compare</button>
     <button class="tab"        onclick="switchTab('history')">History</button>
   </div>
 
@@ -503,7 +524,34 @@
     <div class="spinner" id="spinner-batch">Uploading files…</div>
     <div id="batch-result"></div>
   </div>
-
+  <!-- ── Compare ─────────────────────────────────────────────── -->
+  <div id="panel-compare">
+    <p style="font-size:0.8rem;color:#555;margin-bottom:18px">Upload 2–10 CVs to get a side-by-side ranked comparison with dimension scores. Requires sign-in.</p>
+    <form id="form-compare">
+      <div class="field">
+        <label>CV PDFs (2–10 files)</label>
+        <div class="file-drop" id="drop-compare" onclick="document.getElementById('file-compare').click()">
+          <div class="icon">⚔</div>
+          <strong>Click or drag 2–10 PDFs here</strong>
+          <p>10 MB per file · 50 MB total</p>
+          <input type="file" id="file-compare" accept=".pdf" multiple style="display:none" />
+        </div>
+        <div id="compare-file-names">No files selected</div>
+      </div>
+      <div class="field">
+        <label for="jd-compare">Job Description</label>
+        <textarea id="jd-compare" placeholder="Paste the full job description here…"></textarea>
+      </div>
+      <div class="field">
+        <label>Evaluator Persona <span style="color:#555">(optional — defaults to Founding CTO)</span></label>
+        <div class="persona-chips" id="chips-compare"></div>
+        <textarea id="persona-compare" rows="3" placeholder="e.g. You are a Seed-stage VC…"></textarea>
+      </div>
+      <button type="submit" id="btn-compare">Compare Candidates</button>
+    </form>
+    <div class="spinner" id="spinner-compare">Comparing candidates…</div>
+    <div id="compare-result"></div>
+  </div>
   <!-- ── History ────────────────────────────────────────────── -->
   <div id="panel-history">
     <div id="history-header" style="display:none;justify-content:space-between;align-items:center;margin-bottom:14px">
@@ -622,9 +670,9 @@
   // ── Tab switching ──────────────────────────────────────────
   function switchTab(name) {
     const tabs = document.querySelectorAll('.tab');
-    const order = ['single', 'batch', 'history'];
+    const order = ['single', 'batch', 'compare', 'history'];
     tabs.forEach((t, i) => t.classList.toggle('active', order[i] === name));
-    ['single', 'batch', 'history'].forEach(p => {
+    ['single', 'batch', 'compare', 'history'].forEach(p => {
       document.getElementById(`panel-${p}`).classList.toggle('active', p === name);
     });
     if (name === 'history') loadHistory();
@@ -642,6 +690,10 @@
     const names = Array.from(e.target.files).map(f => f.name).join(', ');
     document.getElementById('batch-file-names').textContent = names || 'No files selected';
   });
+  document.getElementById('file-compare').addEventListener('change', e => {
+    const names = Array.from(e.target.files).map(f => f.name).join(', ');
+    document.getElementById('compare-file-names').textContent = names || 'No files selected';
+  });
 
   // ── Drag-and-drop ──────────────────────────────────────────
   function setupDrop(dropId, inputId, labelId, multi) {
@@ -658,6 +710,7 @@
   }
   setupDrop('drop-single', 'file-single', 'file-name', false);
   setupDrop('drop-batch',  'file-batch',  'batch-file-names', true);
+  setupDrop('drop-compare','file-compare','compare-file-names', true);
 
   // ── Helpers ────────────────────────────────────────────────
   function getHeaders() {
@@ -717,18 +770,25 @@
           r.contact_phone    ? `<a href="tel:${r.contact_phone.replace(/\s/g,'')}">📞 ${r.contact_phone}</a>` : '',
           r.contact_linkedin ? `<a href="${r.contact_linkedin}" target="_blank" rel="noopener">🔗 LinkedIn</a>` : '',
         ].filter(Boolean).join('');
+        const dimsHtml = r.dimensions && Object.keys(r.dimensions).length > 0
+          ? `<div style="display:flex;flex-wrap:wrap;gap:5px;margin-top:8px">${Object.entries(r.dimensions).map(([k,v]) => `<span style="font-size:0.71rem;color:#666;padding:2px 7px;background:#0d0d0d;border:1px solid #1a1a1a;border-radius:4px">${k}: ${v}</span>`).join('')}</div>`
+          : '';
+        const pctHtml = r.percentile != null
+          ? `&ensp;<span style="font-size:0.71rem;color:#4ade80;padding:2px 7px;background:rgba(34,197,94,0.06);border:1px solid rgba(34,197,94,0.15);border-radius:4px">Top ${100-r.percentile}%</span>`
+          : '';
         return `
           <div class="history-row" onclick="toggleHistoryDetail(${r.id})">
             <div class="history-row-top">
               <div class="history-score ${cls}">${r.score}</div>
               <div class="history-meta">
                 <div class="history-filename">${r.filename}</div>
-                <div class="history-date">${date}</div>
+                <div class="history-date">${date}${pctHtml}</div>
               </div>
             </div>
             <div class="history-verdict">${r.verdict ?? ''}</div>
             <div class="history-detail" id="hd-${r.id}">
               ${critique ? `<ul class="history-critique">${critique}</ul>` : ''}
+              ${dimsHtml}
               ${contactLinks ? `<div class="batch-contact">${contactLinks}</div>` : ''}
             </div>
           </div>`;
@@ -802,14 +862,30 @@
     return `<div class="batch-contact">${links.join('')}</div>`;
   }
 
+  function buildDimensions(dims) {
+    if (!dims || Object.keys(dims).length === 0) return '';
+    const rows = Object.entries(dims).map(([name, val]) => {
+      const pct       = Math.min(100, Math.round((val / 10) * 100));
+      const fillClass = val >= 7 ? 'dim-fill-green' : val >= 5 ? 'dim-fill-yellow' : 'dim-fill-red';
+      return `<div class="dim-row"><span class="dim-label">${name}</span><div class="dim-bar"><div class="${fillClass}" style="width:${pct}%"></div></div><span class="dim-val">${val}</span></div>`;
+    }).join('');
+    return `<div class="dim-section">${rows}</div>`;
+  }
+
   function renderSingle(data, container) {
-    const a = data.data.analysis;
+    const a   = data.data.analysis;
     const cls = scoreClass(a.score);
-    const critiques = a.critique.map(c => `<li>${c}</li>`).join('');
+    const critiques  = a.critique.map(c => `<li>${c}</li>`).join('');
+    const dimsHtml   = buildDimensions(a.dimensions);
+    const pctHtml    = data.percentile != null
+      ? `<div class="percentile-badge">Top ${100 - data.percentile}% under this persona</div>`
+      : '';
     container.innerHTML = `
       <div class="score-ring ${cls}">${a.score}</div>
+      ${pctHtml}
       <div class="verdict">${a.verdict}</div>
       <ul class="critique-list">${critiques}</ul>
+      ${dimsHtml}
       ${buildContactCard(data.data.contact)}
     `;
   }
@@ -826,6 +902,31 @@
         : `<div class="batch-verdict">${r.verdict}</div>${buildBatchContact(r.contact)}`;
       return `
         <div class="batch-row">
+          ${badge}
+          <div class="batch-info">
+            <div class="batch-filename">#${i+1} ${r.filename}</div>
+            ${detail}
+          </div>
+        </div>`;
+    }).join('');
+  }
+
+  function renderCompare(data, container) {
+    if (!data.results?.length) { container.innerHTML = '<p style="color:#666">No results.</p>'; return; }
+    const personaLine = data.persona_name
+      ? `<div style="font-size:0.78rem;color:#555;margin-bottom:14px">via <strong style="color:#888">${data.persona_name}</strong> persona</div>`
+      : '';
+    container.innerHTML = personaLine + data.results.map((r, i) => {
+      const cls = scoreClass(r.score);
+      const badge = r.error
+        ? `<div class="batch-score" style="background:#2e0f0f;color:#f87171;border:2px solid #7f1d1d">!</div>`
+        : `<div class="batch-score ${cls}">${r.score}</div>`;
+      const dimsHtml = buildDimensions(r.dimensions);
+      const detail = r.error
+        ? `<div class="batch-error">${r.error}</div>`
+        : `<div class="batch-verdict">${r.verdict}</div>${dimsHtml}${buildBatchContact(r.contact)}`;
+      return `
+        <div class="batch-row" style="flex-wrap:wrap">
           ${badge}
           <div class="batch-info">
             <div class="batch-filename">#${i+1} ${r.filename}</div>
@@ -852,8 +953,12 @@
     const fd = new FormData();
     fd.append('file', file);
     fd.append('jd', jd);
-    const persona = document.getElementById('persona-single').value.trim();
-    if (persona) fd.append('persona', persona);
+    if (_singlePersonaId) {
+      fd.append('persona_id', _singlePersonaId);
+    } else {
+      const persona = document.getElementById('persona-single').value.trim();
+      if (persona) fd.append('persona', persona);
+    }
 
     try {
       const res = await fetch(`${getBase()}/evaluate`, { method: 'POST', headers: getHeaders(), body: fd });
@@ -915,49 +1020,103 @@
       btn.disabled = false; spinner.style.display = 'none';
     }
   });
-  // ── Persona presets ────────────────────────────────────────
-  const PERSONAS = [
-    { label: "🚀 Founding CTO",    text: "You are a Founding CTO of a high-growth AI startup. Evaluate the candidate with extreme rigor. Focus on High Agency, Technical Depth, and Velocity." },
-    { label: "💼 VP Sales",        text: "You are a VP of Sales at a fast-growing B2B SaaS company. Evaluate the candidate for deal-closing instinct, resilience, hustle, and ability to hit quota." },
-    { label: "🎨 Design Lead",     text: "You are a Design Lead at a product-driven startup. Evaluate the candidate for taste, systems thinking, user empathy, and speed of iteration." },
-    { label: "📣 Head of Growth",  text: "You are a Head of Growth at a consumer startup. Evaluate the candidate for data-driven decision making, creative experimentation, and growth channel expertise." },
-    { label: "🏥 Clinical Lead",   text: "You are a Clinical Lead evaluating a healthcare professional. Evaluate for patient safety awareness, clinical knowledge, empathy, and adherence to protocols." },
-    { label: "✏️ Custom",          text: "" },
-  ];
+  // ── Persona chips (loaded dynamically from /personas) ────────
+  let _singlePersonaId  = null;
+  let _batchPersonaId   = null;
+  let _comparePersonaId = null;
 
-  function setupPersonaChips(chipsId, textareaId) {
+  function _buildChips(chipsId, textareaId, onSelect) {
     const container = document.getElementById(chipsId);
     const textarea  = document.getElementById(textareaId);
-    PERSONAS.forEach(p => {
+    if (!container) return;
+    container.innerHTML = '';
+    window._personasData.forEach(p => {
       const chip = document.createElement('button');
       chip.type = 'button';
       chip.className = 'chip';
-      chip.textContent = p.label;
+      chip.textContent = p.name;
+      chip.title = p.description ?? '';
       chip.addEventListener('click', () => {
         container.querySelectorAll('.chip').forEach(c => c.classList.remove('active'));
         chip.classList.add('active');
-        if (p.text) {
-          textarea.value = p.text;
-          textarea.readOnly = true;
-        } else {
-          textarea.value = '';
-          textarea.readOnly = false;
-          textarea.focus();
-        }
+        textarea.value = p.prompt;
+        textarea.readOnly = true;
+        onSelect(p.id);
       });
       container.appendChild(chip);
     });
-    // Un-readonly if user edits manually
+    // Custom chip
+    const customChip = document.createElement('button');
+    customChip.type = 'button';
+    customChip.className = 'chip';
+    customChip.textContent = '\u270f\ufe0f Custom';
+    customChip.addEventListener('click', () => {
+      container.querySelectorAll('.chip').forEach(c => c.classList.remove('active'));
+      customChip.classList.add('active');
+      textarea.value = '';
+      textarea.readOnly = false;
+      textarea.focus();
+      onSelect(null);
+    });
+    container.appendChild(customChip);
+    // Un-readonly on manual edit
     textarea.addEventListener('input', () => {
       container.querySelectorAll('.chip').forEach(c => c.classList.remove('active'));
+      onSelect(null);
     });
   }
 
-  setupPersonaChips('chips-single', 'persona-single');
-  setupPersonaChips('chips-batch',  'persona-batch');
+  async function loadPersonaChips() {
+    try {
+      const res = await fetch(`${getBase()}/personas?limit=50`);
+      if (res.ok) window._personasData = await res.json();
+    } catch (_) { /* silently fall back to empty */ }
+    _buildChips('chips-single',  'persona-single',  id => { _singlePersonaId  = id; });
+    _buildChips('chips-batch',   'persona-batch',   id => { _batchPersonaId   = id; });
+    _buildChips('chips-compare', 'persona-compare', id => { _comparePersonaId = id; });
+  }
+  window._personasData = [];
+
+  // ── Compare form ───────────────────────────────────────────
+  document.getElementById('form-compare').addEventListener('submit', async e => {
+    e.preventDefault();
+    const files  = document.getElementById('file-compare').files;
+    const jd     = document.getElementById('jd-compare').value.trim();
+    const result = document.getElementById('compare-result');
+
+    if (!_authToken) { renderError('Sign in to use comparison mode.', result); return; }
+    if (files.length < 2) { renderError('Select at least 2 PDF files to compare.', result); return; }
+    if (!jd)               { renderError('Please enter a job description.', result); return; }
+
+    const btn     = document.getElementById('btn-compare');
+    const spinner = document.getElementById('spinner-compare');
+    btn.disabled = true; spinner.style.display = 'block'; result.innerHTML = '';
+
+    const fd = new FormData();
+    Array.from(files).forEach(f => fd.append('files', f));
+    fd.append('jd', jd);
+    if (_comparePersonaId) {
+      fd.append('persona_id', _comparePersonaId);
+    } else {
+      const persona = document.getElementById('persona-compare').value.trim();
+      if (persona) fd.append('persona', persona);
+    }
+
+    try {
+      const res  = await fetch(`${getBase()}/compare`, { method: 'POST', headers: getHeaders(), body: fd });
+      const json = await res.json();
+      if (!res.ok) renderError(json.detail ?? `Error ${res.status}`, result);
+      else renderCompare(json, result);
+    } catch (err) {
+      renderError(`Network error: ${err.message}`, result);
+    } finally {
+      btn.disabled = false; spinner.style.display = 'none';
+    }
+  });
 
   // Restore auth state on load
   renderAccountPill();
+  loadPersonaChips();
 
 </script>
 </body>

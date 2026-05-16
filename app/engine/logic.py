@@ -49,12 +49,19 @@ else:  # "github" (default)
     _provider_type = "github"
 
 
-def _build_system_prompt(persona: str) -> str:
+def _build_system_prompt(persona: str, dimension_names: list | None = None) -> str:
+    dims_clause = ""
+    if dimension_names:
+        dim_list = ", ".join(f'"{d}"' for d in dimension_names)
+        dims_clause = (
+            f' "dimensions" (object with keys [{dim_list}], each scored 0-10).'
+        )
     return (
         f"{persona.strip()} "
-        "You must return ONLY a JSON object with the following keys: "
-        "'score' (0-100), 'critique' (list of 3 strings), and 'verdict' (one sentence). "
-        "The score should reflect how well the candidate fits the role described."
+        "You must return ONLY a JSON object with these keys: "
+        "'score' (0-100), 'critique' (list of 3 strings), 'verdict' (one sentence)"
+        + (f",{dims_clause}" if dims_clause else ".")
+        + " No markdown, no explanation, only the JSON object."
     )
 
 
@@ -69,9 +76,14 @@ def _parse_llm_json(raw: str) -> dict:
     return json.loads(raw)
 
 
-def evaluate_cv(cv_text: str, job_description: str, persona: str = DEFAULT_PERSONA) -> dict:
+def evaluate_cv(
+    cv_text: str,
+    job_description: str,
+    persona: str = DEFAULT_PERSONA,
+    dimension_names: list | None = None,
+) -> dict:
     cv_text = cv_text[:CV_TEXT_CHAR_LIMIT]
-    system_prompt = _build_system_prompt(persona)
+    system_prompt = _build_system_prompt(persona, dimension_names)
     user_message = f"JD: {job_description}\n\nCV: {cv_text}"
     try:
         if _provider_type == "anthropic":
@@ -93,7 +105,10 @@ def evaluate_cv(cv_text: str, job_description: str, persona: str = DEFAULT_PERSO
             )
             raw_content = response.choices[0].message.content or ""
 
-        return _parse_llm_json(raw_content)
-    
+        result = _parse_llm_json(raw_content)
+        if "dimensions" not in result:
+            result["dimensions"] = {}
+        return result
+
     except Exception as e:
         raise RuntimeError(f"LLM call failed: {str(e)}") from e

@@ -2,7 +2,7 @@ import json
 from fastapi import APIRouter, Depends
 from pydantic import BaseModel
 from sqlalchemy.orm import Session
-from typing import Optional
+from typing import Optional, Dict
 
 from app.database import get_db
 from app.db_models import EvaluationRecord, User
@@ -20,6 +20,9 @@ class HistoryItem(BaseModel):
     verdict: Optional[str]
     critique: list
     persona_used: Optional[str]
+    persona_id: Optional[int] = None
+    dimensions: Dict[str, int] = {}
+    percentile: Optional[int] = None
     contact_email: Optional[str]
     contact_phone: Optional[str]
     contact_linkedin: Optional[str]
@@ -51,6 +54,9 @@ def get_history(
             verdict=r.verdict,
             critique=r.critique(),
             persona_used=r.persona_used,
+            persona_id=r.persona_id,
+            dimensions=r.dimension_scores(),
+            percentile=r.percentile,
             contact_email=r.contact_email,
             contact_phone=r.contact_phone,
             contact_linkedin=r.contact_linkedin,

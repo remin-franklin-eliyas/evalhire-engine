@@ -223,6 +223,14 @@
     }
     .demo-contact a { font-size: 0.79rem; color: #7db9f0; text-decoration: none; transition: color 0.15s; }
     .demo-contact a:hover { color: #fff; }
+    .demo-persona-tag { font-size: 0.7rem; color: var(--muted); margin-bottom: 4px; }
+    .demo-dims { margin: 14px 0 12px; }
+    .demo-dim-row { display: flex; align-items: center; gap: 10px; margin-bottom: 7px; }
+    .demo-dim-label { font-size: 0.73rem; color: var(--muted2); width: 120px; flex-shrink: 0; }
+    .demo-dim-bar { flex: 1; height: 4px; background: var(--border2); border-radius: 2px; overflow: hidden; }
+    .demo-dim-fill { height: 100%; background: var(--green); border-radius: 2px; }
+    .demo-dim-val { font-size: 0.73rem; color: var(--muted2); width: 16px; text-align: right; flex-shrink: 0; }
+    .demo-percentile { font-size: 0.74rem; color: #4ade80; padding: 6px 12px; background: rgba(34,197,94,0.06); border: 1px solid rgba(34,197,94,0.12); border-radius: 6px; text-align: center; margin-top: 4px; }
 
     /* ── Personas ─────────────────────────────────────── */
     .personas-wrap { max-width: 860px; margin: 0 auto; padding: 0 24px 80px; text-align: center; }
@@ -329,7 +337,7 @@
   <div class="stats-inner">
     <div class="stat"><div class="stat-value">&lt;&nbsp;10s</div><div class="stat-label">per evaluation</div></div>
     <div class="stat"><div class="stat-value">0–100</div><div class="stat-label">fit score</div></div>
-    <div class="stat"><div class="stat-value">5</div><div class="stat-label">built-in personas</div></div>
+    <div class="stat"><div class="stat-value">15+</div><div class="stat-label">curated personas</div></div>
     <div class="stat"><div class="stat-value">REST</div><div class="stat-label">API access</div></div>
   </div>
 </div>
@@ -342,13 +350,13 @@
       <div class="step-num">Step 01</div>
       <div class="step-icon">📄</div>
       <h3>Upload a CV + paste a JD</h3>
-      <p>Drop a PDF and paste your job description. Pick a persona — Founding CTO, VP Sales, or write your own in plain English.</p>
+      <p>Drop a PDF and paste your job description. Choose from 15+ curated personas — YC Partner, Google L6 EM, Seed-stage VC — or write your own prompt in plain English.</p>
     </div>
     <div class="step">
       <div class="step-num">Step 02</div>
       <div class="step-icon">⚡</div>
       <h3>LLM scores the candidate</h3>
-      <p>Your chosen model — GitHub Models (default), OpenAI, or Anthropic — produces a 0–100 score, a 3-point critique, and a hire/pass verdict calibrated to your persona.</p>
+      <p>Your chosen model — GitHub Models (default), OpenAI, or Anthropic — produces a 0–100 score, persona-specific dimension scores (e.g. Agency: 9, Velocity: 7), a 3-point critique, and a hire/pass verdict. As your pool grows, a percentile rank shows where this candidate sits among everyone evaluated under the same lens.</p>
     </div>
     <div class="step">
       <div class="step-num">Step 03</div>
@@ -364,11 +372,11 @@
   <div class="section-heading">Everything you need, nothing you don't</div>
   <div class="features-grid">
     <div class="feature f-yellow"><div class="feature-icon">⚡</div><h3>Scored in seconds</h3><p>0–100 startup fit score with a 3-bullet critique and a one-sentence verdict — every time, instantly.</p></div>
-    <div class="feature f-purple"><div class="feature-icon">🎭</div><h3>Configurable persona</h3><p>Evaluate through the eyes of a Founding CTO, VP Sales, Design Lead, or write your own. The LLM adapts its rubric accordingly.</p></div>
+    <div class="feature f-purple"><div class="feature-icon">🎭</div><h3>Persona Marketplace</h3><p>15 curated lenses — YC Partner, Google L6 EM, DEI Recruiter, Seed-stage VC and more — ranked by community usage. Pick the right rubric in one click, or publish your own.</p></div>
     <div class="feature f-blue"><div class="feature-icon">📇</div><h3>Contact info extracted</h3><p>Email, phone, and LinkedIn parsed directly from the PDF so you can reach the right candidate immediately.</p></div>
-    <div class="feature f-green"><div class="feature-icon">📋</div><h3>Full screening history</h3><p>Every evaluation saved to your account. Compare candidates, pick up where you left off.</p></div>
+    <div class="feature f-green"><div class="feature-icon">�</div><h3>Dimension scoring</h3><p>Each persona evaluates specific axes — Agency, System Design, Async Communication — and scores them 0–10. See exactly where a candidate excels and where they fall short, not just a single number.</p></div>
     <div class="feature f-orange"><div class="feature-icon">📦</div><h3>Async batch mode</h3><p>Submit up to 50 CVs at once. Jobs run asynchronously — get a result link immediately, results are ready when the LLM finishes. No hanging requests.</p></div>
-    <div class="feature f-pink"><div class="feature-icon">🔌</div><h3>REST API</h3><p>Headless access via X-API-Key. Plug it into your ATS, Notion database, or any internal tool.</p></div>
+    <div class="feature f-pink"><div class="feature-icon">⚔</div><h3>Candidate comparison</h3><p>Submit 2–10 CVs in one request. Get a ranked table with dimension scores side-by-side. Answer "who do I hire?" in seconds. Full REST API for headless integration.</p></div>
   </div>
 </div>
 
@@ -382,6 +390,7 @@
       <div class="demo-score">87</div>
       <div>
         <div class="demo-filename">senior_engineer_cv.pdf</div>
+        <div class="demo-persona-tag">via Founding CTO persona</div>
         <div class="demo-verdict">Strong hire — interview fast before someone else does.</div>
       </div>
     </div>
@@ -390,6 +399,12 @@
       <li>Moved from seed-stage to Series B in 18 months; understands what velocity actually looks like.</li>
       <li>No evidence of cross-functional leadership yet — worth probing in the loop interview.</li>
     </ul>
+    <div class="demo-dims">
+      <div class="demo-dim-row"><span class="demo-dim-label">Agency</span><div class="demo-dim-bar"><div class="demo-dim-fill" style="width:90%"></div></div><span class="demo-dim-val">9</span></div>
+      <div class="demo-dim-row"><span class="demo-dim-label">Technical Depth</span><div class="demo-dim-bar"><div class="demo-dim-fill" style="width:80%"></div></div><span class="demo-dim-val">8</span></div>
+      <div class="demo-dim-row"><span class="demo-dim-label">Velocity</span><div class="demo-dim-bar"><div class="demo-dim-fill" style="width:70%"></div></div><span class="demo-dim-val">7</span></div>
+    </div>
+    <div class="demo-percentile">Top 8% among all CVs evaluated under the Founding CTO persona</div>
     <div class="demo-contact">
       <a href="#">✉ jane@example.com</a>
       <a href="#">📞 +44 7700 900123</a>
@@ -399,15 +414,25 @@
 </div>
 
 <div class="personas-wrap">
-  <div class="section-eyebrow">Personas</div>
-  <div class="section-heading" style="font-size:1.4rem;margin-bottom:8px">Built-in evaluation personas</div>
-  <p style="color:var(--muted2);font-size:0.86rem">One click to switch the lens. Or write your own in plain English.</p>
+  <div class="section-eyebrow">Persona Marketplace</div>
+  <div class="section-heading" style="font-size:1.4rem;margin-bottom:8px">15 curated evaluation lenses</div>
+  <p style="color:var(--muted2);font-size:0.86rem">Pick the right rubric in one click. Create and share your own with the community.</p>
   <div class="persona-grid">
     <div class="persona-pill">🚀 Founding CTO</div>
-    <div class="persona-pill">💼 VP Sales</div>
-    <div class="persona-pill">🎨 Design Lead</div>
-    <div class="persona-pill">📣 Head of Growth</div>
-    <div class="persona-pill">🏥 Clinical Lead</div>
+    <div class="persona-pill">🏆 YC Partner</div>
+    <div class="persona-pill">🔵 Google L6 Staff Engineer</div>
+    <div class="persona-pill">🌍 DEI-First Recruiter</div>
+    <div class="persona-pill">💼 Non-technical Founder</div>
+    <div class="persona-pill">🏛 Enterprise CTO</div>
+    <div class="persona-pill">💰 Seed-stage VC</div>
+    <div class="persona-pill">📦 Product Manager</div>
+    <div class="persona-pill">🔬 ML Research Lead</div>
+    <div class="persona-pill">⚡ Startup Recruiter (Series A)</div>
+    <div class="persona-pill">🏢 FAANG Engineering Manager</div>
+    <div class="persona-pill">🏥 Healthcare Tech Lead</div>
+    <div class="persona-pill">💳 Fintech Compliance Officer</div>
+    <div class="persona-pill">🌐 Remote-first Culture Lead</div>
+    <div class="persona-pill">🎨 Design Thinking Lead</div>
     <div class="persona-pill">✏️ Custom persona</div>
   </div>
 </div>

@@ -13,13 +13,15 @@ from typing import List
 
 from app.utils.extractor import extract_text_from_pdf, extract_contact_info
 from app.engine.logic import evaluate_cv, DEFAULT_PERSONA
+from app.engine.personas_seed import seed_system_personas
 from app.models import (
     EvaluationResult, EvaluationData, EvaluationResponse,
     BatchResultItem, BatchResponse, JobCreatedResponse, JobStatusResponse,
+    PersonaCreate, PersonaResponse, CompareResultItem, CompareResponse,
 )
-from app.auth import verify_api_key, get_optional_user
-from app.database import engine, get_db
-from app.routers import auth_routes, history_routes
+from app.auth import verify_api_key, get_optional_user, get_current_user
+from app.database import engine, get_db, SessionLocal
+from app.routers import auth_routes, history_routes, persona_routes
 
 MAX_UPLOAD_BYTES = 10 * 1024 * 1024          # 10 MB per file
 MAX_AGGREGATE_BATCH_BYTES = 50 * 1024 * 1024  # 50 MB total across all files in a batch
@@ -30,19 +32,30 @@ _jobs: dict = {}
 _jobs_lock = threading.Lock()
 
 # ── Create DB tables on startup ───────────────────────────────────────────────
-from app.db_models import User, EvaluationRecord  # noqa: F401 — registers models with Base
+from app.db_models import User, EvaluationRecord, Persona  # noqa: F401 — registers models with Base
 from app.database import Base
 from datetime import datetime, timezone
 Base.metadata.create_all(bind=engine)
 
-# ── Inline migration: add columns that may be missing from older DBs ──────────
+# ── Inline migrations: add columns that may be missing from older DBs ─────────
+_MIGRATIONS = [
+    "ALTER TABLE users ADD COLUMN tier TEXT NOT NULL DEFAULT 'free'",
+    "ALTER TABLE evaluations ADD COLUMN persona_id INTEGER REFERENCES personas(id)",
+    "ALTER TABLE evaluations ADD COLUMN dimensions_json TEXT",
+    "ALTER TABLE evaluations ADD COLUMN percentile INTEGER",
+]
 with engine.connect() as _conn:
     from sqlalchemy import text as _text
-    try:
-        _conn.execute(_text("ALTER TABLE users ADD COLUMN tier TEXT NOT NULL DEFAULT 'free'"))
-        _conn.commit()
-    except Exception:
-        pass  # column already exists
+    for _sql in _MIGRATIONS:
+        try:
+            _conn.execute(_text(_sql))
+            _conn.commit()
+        except Exception:
+            pass  # column/table already exists
+
+# ── Seed curated system personas ───────────────────────────────────────────────
+with SessionLocal() as _seed_db:
+    seed_system_personas(_seed_db)
 
 
 def _check_free_tier(user, db: Session, slots_needed: int = 1) -> None:
@@ -85,6 +98,7 @@ app.mount("/static", StaticFiles(directory=_static_dir), name="static")
 
 app.include_router(auth_routes.router)
 app.include_router(history_routes.router)
+app.include_router(persona_routes.router)
 
 
 @app.get("/", response_class=FileResponse)
@@ -102,11 +116,44 @@ def health_check():
     return {"status": "active", "engine": "EvalHire v1.0"}
 
 
+def _resolve_persona(persona_id: int | None, persona_text: str, db: Session):
+    """Return (prompt, dimension_names, persona_obj | None)."""
+    if persona_id is not None:
+        p = db.query(Persona).filter(Persona.id == persona_id).first()
+        if p is None or not p.is_public:
+            raise HTTPException(status_code=404, detail="Persona not found.")
+        return p.prompt, p.dimension_names(), p
+    return persona_text.strip() or DEFAULT_PERSONA, [], None
+
+
+def _compute_percentile(persona_id: int, score: int, db: Session) -> int | None:
+    """Percentile rank of this score among all evaluations with the same persona.
+    Returns None if fewer than 5 records exist (not enough data).
+    """
+    total = (
+        db.query(EvaluationRecord)
+        .filter(EvaluationRecord.persona_id == persona_id)
+        .count()
+    )
+    if total < 5:
+        return None
+    lower = (
+        db.query(EvaluationRecord)
+        .filter(
+            EvaluationRecord.persona_id == persona_id,
+            EvaluationRecord.score < score,
+        )
+        .count()
+    )
+    return round((lower / total) * 100)
+
+
 @app.post("/evaluate", response_model=EvaluationResponse)
 async def evaluate_candidate(
     file: UploadFile = File(...),
     jd: str = Form(...),
     persona: str = Form(default=""),
+    persona_id: int | None = Form(default=None),
     _: None = Depends(verify_api_key),
     current_user=Depends(get_optional_user),
     db: Session = Depends(get_db),
@@ -124,9 +171,9 @@ async def evaluate_candidate(
 
     _check_free_tier(current_user, db)
 
-    active_persona = persona.strip() or DEFAULT_PERSONA
+    active_prompt, dimension_names, persona_obj = _resolve_persona(persona_id, persona, db)
     try:
-        raw = evaluate_cv(extracted_text, jd, persona=active_persona)
+        raw = evaluate_cv(extracted_text, jd, persona=active_prompt, dimension_names=dimension_names or None)
     except RuntimeError as e:
         raise HTTPException(status_code=502, detail=f"LLM unavailable: {str(e)}")
 
@@ -136,6 +183,7 @@ async def evaluate_candidate(
         raise HTTPException(status_code=500, detail="LLM returned a malformed response.")
 
     contact = extract_contact_info(extracted_text)
+    percentile: int | None = None
 
     if current_user:
         record = EvaluationRecord(
@@ -145,17 +193,105 @@ async def evaluate_candidate(
             score=analysis.score,
             verdict=analysis.verdict,
             critique_json=json.dumps(analysis.critique),
-            persona_used=active_persona,
-            contact_email=contact.email,
-            contact_phone=contact.phone,
-            contact_linkedin=contact.linkedin,
+            persona_used=active_prompt,
+            persona_id=persona_obj.id if persona_obj else None,
+            dimensions_json=json.dumps(analysis.dimensions) if analysis.dimensions else None,
         )
+        record.contact_email = contact.email
+        record.contact_phone = contact.phone
+        record.contact_linkedin = contact.linkedin
         db.add(record)
         db.commit()
+        db.refresh(record)
+
+        if persona_obj:
+            percentile = _compute_percentile(persona_obj.id, analysis.score, db)
+            record.percentile = percentile
+            # Increment use_count
+            persona_obj.use_count += 1
+            db.commit()
 
     return EvaluationResponse(
         status="success",
         data=EvaluationData(filename=file.filename, analysis=analysis, contact=contact),
+        percentile=percentile,
+    )
+
+
+@app.post("/compare", response_model=CompareResponse)
+async def compare_candidates(
+    files: List[UploadFile] = File(...),
+    jd: str = Form(...),
+    persona: str = Form(default=""),
+    persona_id: int | None = Form(default=None),
+    _: None = Depends(verify_api_key),
+    current_user=Depends(get_current_user),
+    db: Session = Depends(get_db),
+):
+    """Evaluate 2–10 CVs side-by-side and return a ranked comparison. Requires auth."""
+    if not files or len(files) < 2:
+        raise HTTPException(status_code=400, detail="At least 2 files are required for comparison.")
+    if len(files) > 10:
+        raise HTTPException(status_code=400, detail="Maximum 10 files per comparison.")
+    if not jd.strip():
+        raise HTTPException(status_code=400, detail="Job description is required.")
+
+    active_prompt, dimension_names, persona_obj = _resolve_persona(persona_id, persona, db)
+    results: list[CompareResultItem] = []
+
+    for upload in files:
+        content = await upload.read()
+        if len(content) > MAX_UPLOAD_BYTES:
+            results.append(CompareResultItem(
+                filename=upload.filename, score=0, verdict="Skipped",
+                error="File too large. Maximum size is 10 MB.",
+            ))
+            continue
+        if upload.content_type != "application/pdf":
+            results.append(CompareResultItem(
+                filename=upload.filename, score=0, verdict="Skipped",
+                error="Not a PDF file.",
+            ))
+            continue
+        extracted_text = extract_text_from_pdf(io.BytesIO(content))
+        if "Error" in extracted_text:
+            results.append(CompareResultItem(
+                filename=upload.filename, score=0, verdict="Skipped",
+                error="Failed to extract text from PDF.",
+            ))
+            continue
+        try:
+            raw = evaluate_cv(
+                extracted_text, jd,
+                persona=active_prompt,
+                dimension_names=dimension_names or None,
+            )
+            analysis = EvaluationResult(**raw)
+            contact = extract_contact_info(extracted_text)
+            results.append(CompareResultItem(
+                filename=upload.filename,
+                score=analysis.score,
+                verdict=analysis.verdict,
+                dimensions=analysis.dimensions,
+                contact=contact,
+            ))
+        except Exception as exc:
+            results.append(CompareResultItem(
+                filename=upload.filename, score=0,
+                verdict="Evaluation failed", error=str(exc),
+            ))
+
+    results.sort(key=lambda r: r.score, reverse=True)
+
+    if persona_obj:
+        persona_obj.use_count += len([r for r in results if not r.error])
+        db.commit()
+
+    return CompareResponse(
+        status="success",
+        jd_preview=jd[:200],
+        persona_name=persona_obj.name if persona_obj else None,
+        results=results,
     )
 
 

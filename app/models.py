@@ -1,5 +1,5 @@
 from pydantic import BaseModel, Field
-from typing import List
+from typing import List, Dict
 
 
 class ContactInfo(BaseModel):
@@ -12,6 +12,7 @@ class EvaluationResult(BaseModel):
     score: int = Field(..., ge=0, le=100)
     critique: List[str]
     verdict: str
+    dimensions: Dict[str, int] = {}
 
 
 class EvaluationData(BaseModel):
@@ -23,6 +24,7 @@ class EvaluationData(BaseModel):
 class EvaluationResponse(BaseModel):
     status: str
     data: EvaluationData
+    percentile: int | None = None
 
 
 class BatchResultItem(BaseModel):
@@ -54,3 +56,43 @@ class JobStatusResponse(BaseModel):
     results: List[BatchResultItem] | None = None
     error: str | None = None
     created_at: str
+
+
+class PersonaCreate(BaseModel):
+    name: str
+    description: str | None = None
+    prompt: str
+    dimensions: List[str] = []
+    is_public: bool = True
+
+
+class PersonaResponse(BaseModel):
+    id: int
+    name: str
+    description: str | None = None
+    prompt: str
+    dimensions: List[str] = []
+    is_public: bool
+    is_system: bool
+    author_id: int | None = None
+    use_count: int
+    created_at: str
+
+    class Config:
+        from_attributes = True
+
+
+class CompareResultItem(BaseModel):
+    filename: str
+    score: int = Field(..., ge=0, le=100)
+    verdict: str
+    dimensions: Dict[str, int] = {}
+    contact: ContactInfo | None = None
+    error: str | None = None
+
+
+class CompareResponse(BaseModel):
+    status: str
+    jd_preview: str
+    persona_name: str | None = None
+    results: List[CompareResultItem]
