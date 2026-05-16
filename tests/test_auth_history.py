@@ -274,7 +274,8 @@ def test_history_purge_clears_records(db_client):
     assert len(db_client.get("/history", headers=_auth_headers(token)).json()) == 1
 
     res = db_client.post("/history/purge", headers=_auth_headers(token))
-    assert res.status_code == 204
+    assert res.status_code == 200
+    assert res.json()["deleted"] == 1
 
     # History should now be empty
     assert db_client.get("/history", headers=_auth_headers(token)).json() == []
