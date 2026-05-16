@@ -31,6 +31,7 @@ class BatchResultItem(BaseModel):
     filename: str
     score: int = Field(..., ge=0, le=100)
     verdict: str
+    dimensions: Dict[str, int] = {}
     error: str | None = None
     contact: ContactInfo | None = None
 

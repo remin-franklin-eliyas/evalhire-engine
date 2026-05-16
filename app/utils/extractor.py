@@ -15,8 +15,8 @@ def extract_text_from_pdf(file_bytes):
                 if page_text:
                     text += page_text + "\n"
         return text.strip()
-    except Exception as e:
-        return f"Error extracting PDF: {str(e)}"
+    except Exception as exc:
+        raise RuntimeError(f"Failed to extract PDF text: {exc}") from exc
 
 
 def extract_contact_info(text: str) -> ContactInfo:

@@ -65,13 +65,16 @@ def get_history(
     ]
 
 
-@router.post("/purge", status_code=204)
+@router.post("/purge")
 def purge_history(
     current_user: User = Depends(get_current_user),
     db: Session = Depends(get_db),
 ):
     """Delete all evaluation history for the current user (GDPR right to erasure)."""
-    db.query(EvaluationRecord).filter(
-        EvaluationRecord.user_id == current_user.id
-    ).delete(synchronize_session=False)
+    deleted = (
+        db.query(EvaluationRecord)
+        .filter(EvaluationRecord.user_id == current_user.id)
+        .delete(synchronize_session=False)
+    )
     db.commit()
+    return {"deleted": deleted}

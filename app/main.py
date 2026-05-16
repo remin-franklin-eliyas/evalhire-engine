@@ -3,6 +3,7 @@ import io
 import os
 import uuid
 import threading
+import asyncio
 
 from fastapi import FastAPI, UploadFile, File, Form, HTTPException, Depends, BackgroundTasks
 from fastapi.middleware.cors import CORSMiddleware
@@ -25,7 +26,7 @@ from app.routers import auth_routes, history_routes, persona_routes
 
 MAX_UPLOAD_BYTES = 10 * 1024 * 1024          # 10 MB per file
 MAX_AGGREGATE_BATCH_BYTES = 50 * 1024 * 1024  # 50 MB total across all files in a batch
-FREE_TIER_MONTHLY_LIMIT = 20
+FREE_TIER_MONTHLY_LIMIT = int(os.getenv("FREE_TIER_MONTHLY_LIMIT", "20"))
 
 # ── In-memory job store for async batch processing ────────────────────────────
 _jobs: dict = {}
@@ -164,10 +165,10 @@ async def evaluate_candidate(
     content = await file.read()
     if len(content) > MAX_UPLOAD_BYTES:
         raise HTTPException(status_code=413, detail="File too large. Maximum size is 10 MB.")
-    extracted_text = extract_text_from_pdf(io.BytesIO(content))
-
-    if "Error" in extracted_text:
-        raise HTTPException(status_code=500, detail="Failed to extract text from CV.")
+    try:
+        extracted_text = extract_text_from_pdf(io.BytesIO(content))
+    except RuntimeError as exc:
+        raise HTTPException(status_code=500, detail=f"Failed to extract text from CV: {exc}")
 
     _check_free_tier(current_user, db)
 
@@ -218,6 +219,65 @@ async def evaluate_candidate(
     )
 
 
+# ── Concurrent compare helpers ─────────────────────────────────────────────
+_COMPARE_SEMAPHORE = asyncio.Semaphore(5)  # max 5 concurrent LLM calls
+
+
+async def _evaluate_compare_file(
+    filename: str,
+    content: bytes,
+    content_type: str,
+    jd: str,
+    active_prompt: str,
+    dimension_names: list,
+) -> CompareResultItem:
+    """Evaluate one CV for /compare, running blocking work in the thread pool."""
+    if len(content) > MAX_UPLOAD_BYTES:
+        return CompareResultItem(
+            filename=filename, score=0, verdict="Skipped",
+            error="File too large. Maximum size is 10 MB.",
+        )
+    if content_type != "application/pdf":
+        return CompareResultItem(
+            filename=filename, score=0, verdict="Skipped",
+            error="Not a PDF file.",
+        )
+    async with _COMPARE_SEMAPHORE:
+        loop = asyncio.get_running_loop()
+        try:
+            extracted_text = await loop.run_in_executor(
+                None, extract_text_from_pdf, io.BytesIO(content)
+            )
+        except RuntimeError:
+            return CompareResultItem(
+                filename=filename, score=0, verdict="Skipped",
+                error="Failed to extract text from PDF.",
+            )
+        try:
+            raw = await loop.run_in_executor(
+                None,
+                lambda: evaluate_cv(
+                    extracted_text, jd,
+                    persona=active_prompt,
+                    dimension_names=dimension_names or None,
+                ),
+            )
+            analysis = EvaluationResult(**raw)
+            contact = await loop.run_in_executor(None, extract_contact_info, extracted_text)
+            return CompareResultItem(
+                filename=filename,
+                score=analysis.score,
+                verdict=analysis.verdict,
+                dimensions=analysis.dimensions,
+                contact=contact,
+            )
+        except Exception as exc:
+            return CompareResultItem(
+                filename=filename, score=0,
+                verdict="Evaluation failed", error=str(exc),
+            )
+
+
 @app.post("/compare", response_model=CompareResponse)
 async def compare_candidates(
     files: List[UploadFile] = File(...),
@@ -237,50 +297,16 @@ async def compare_candidates(
         raise HTTPException(status_code=400, detail="Job description is required.")
 
     active_prompt, dimension_names, persona_obj = _resolve_persona(persona_id, persona, db)
-    results: list[CompareResultItem] = []
 
+    # Read all file contents eagerly — UploadFile objects are not safe to pass into thread executors
+    _file_payloads: list[tuple[str, bytes, str]] = []
     for upload in files:
-        content = await upload.read()
-        if len(content) > MAX_UPLOAD_BYTES:
-            results.append(CompareResultItem(
-                filename=upload.filename, score=0, verdict="Skipped",
-                error="File too large. Maximum size is 10 MB.",
-            ))
-            continue
-        if upload.content_type != "application/pdf":
-            results.append(CompareResultItem(
-                filename=upload.filename, score=0, verdict="Skipped",
-                error="Not a PDF file.",
-            ))
-            continue
-        extracted_text = extract_text_from_pdf(io.BytesIO(content))
-        if "Error" in extracted_text:
-            results.append(CompareResultItem(
-                filename=upload.filename, score=0, verdict="Skipped",
-                error="Failed to extract text from PDF.",
-            ))
-            continue
-        try:
-            raw = evaluate_cv(
-                extracted_text, jd,
-                persona=active_prompt,
-                dimension_names=dimension_names or None,
-            )
-            analysis = EvaluationResult(**raw)
-            contact = extract_contact_info(extracted_text)
-            results.append(CompareResultItem(
-                filename=upload.filename,
-                score=analysis.score,
-                verdict=analysis.verdict,
-                dimensions=analysis.dimensions,
-                contact=contact,
-            ))
-        except Exception as exc:
-            results.append(CompareResultItem(
-                filename=upload.filename, score=0,
-                verdict="Evaluation failed", error=str(exc),
-            ))
+        _file_payloads.append((upload.filename, await upload.read(), upload.content_type))
 
+    results = list(await asyncio.gather(*[
+        _evaluate_compare_file(fn, c, ct, jd, active_prompt, dimension_names)
+        for fn, c, ct in _file_payloads
+    ]))
     results.sort(key=lambda r: r.score, reverse=True)
 
     if persona_obj:
@@ -300,6 +326,8 @@ def _process_batch_job(
     files_data: list,
     jd: str,
     persona: str,
+    dimension_names: list,
+    persona_id: int | None,
     user_id: int | None,
 ) -> None:
     """Background task: evaluate each CV and write results to the job store."""
@@ -322,13 +350,16 @@ def _process_batch_job(
                 results.append({"filename": filename, "score": 0, "verdict": "Skipped",
                                  "error": "Not a PDF file.", "contact": None})
             else:
-                extracted_text = extract_text_from_pdf(io.BytesIO(content))
-                if "Error" in extracted_text:
+                try:
+                    extracted_text = extract_text_from_pdf(io.BytesIO(content))
+                except RuntimeError:
                     results.append({"filename": filename, "score": 0, "verdict": "Skipped",
-                                     "error": "Failed to extract text from PDF.", "contact": None})
+                                     "error": "Failed to extract text from PDF.", "contact": None,
+                                     "dimensions": {}})
                 else:
                     try:
-                        raw = evaluate_cv(extracted_text, jd, persona=persona)
+                        raw = evaluate_cv(extracted_text, jd, persona=persona,
+                                          dimension_names=dimension_names or None)
                         analysis = EvaluationResult(**raw)
                         contact = extract_contact_info(extracted_text)
                         results.append({
@@ -336,6 +367,7 @@ def _process_batch_job(
                             "score": analysis.score,
                             "verdict": analysis.verdict,
                             "error": None,
+                            "dimensions": analysis.dimensions,
                             "contact": contact.model_dump() if contact else None,
                         })
                         if user_id is not None:
@@ -347,6 +379,8 @@ def _process_batch_job(
                                 verdict=analysis.verdict,
                                 critique_json=json.dumps(analysis.critique),
                                 persona_used=persona,
+                                persona_id=persona_id,
+                                dimensions_json=json.dumps(analysis.dimensions) if analysis.dimensions else None,
                                 contact_email=contact.email if contact else None,
                                 contact_phone=contact.phone if contact else None,
                                 contact_linkedin=contact.linkedin if contact else None,
@@ -354,13 +388,17 @@ def _process_batch_job(
                     except Exception as exc:
                         results.append({"filename": filename, "score": 0,
                                          "verdict": "Evaluation failed", "error": str(exc),
-                                         "contact": None})
+                                         "contact": None, "dimensions": {}})
 
             with _jobs_lock:
                 _jobs[job_id]["processed"] += 1
 
         results.sort(key=lambda r: r["score"], reverse=True)
-        if user_id is not None:
+        if persona_id is not None:
+            _p = db.query(Persona).filter(Persona.id == persona_id).first()
+            if _p:
+                _p.use_count += sum(1 for r in results if not r.get("error"))
+        if user_id is not None or persona_id is not None:
             db.commit()
 
         with _jobs_lock:
@@ -382,6 +420,7 @@ async def evaluate_batch(
     files: List[UploadFile] = File(...),
     jd: str = Form(...),
     persona: str = Form(default=""),
+    persona_id: int | None = Form(default=None),
     _: None = Depends(verify_api_key),
     current_user=Depends(get_optional_user),
     db: Session = Depends(get_db),
@@ -428,10 +467,11 @@ async def evaluate_batch(
             "error": None,
         }
 
-    active_persona = persona.strip() or DEFAULT_PERSONA
+    active_prompt, dimension_names, persona_obj = _resolve_persona(persona_id, persona, db)
+    resolved_persona_id = persona_obj.id if persona_obj else None
     background_tasks.add_task(
-        _process_batch_job, job_id, files_data, jd, active_persona,
-        current_user.id if current_user else None,
+        _process_batch_job, job_id, files_data, jd, active_prompt, dimension_names,
+        resolved_persona_id, current_user.id if current_user else None,
     )
     return JobCreatedResponse(job_id=job_id, status="pending", total=len(files_data))
 

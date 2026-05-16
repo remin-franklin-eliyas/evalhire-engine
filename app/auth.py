@@ -13,7 +13,18 @@ from app.database import get_db
 
 # ── Constants ────────────────────────────────────────────────────────────────
 
-SECRET_KEY  = os.getenv("SECRET_KEY") or secrets.token_hex(32)
+SECRET_KEY = os.getenv("SECRET_KEY")
+if not SECRET_KEY:
+    SECRET_KEY = secrets.token_hex(32)
+    import sys
+    print(
+        "\n\u26a0\ufe0f  WARNING: SECRET_KEY is not set. A random signing key was generated for "
+        "this session.\n"
+        "   Every server restart will invalidate all active JWT tokens (users get logged out).\n"
+        "   Set SECRET_KEY in your .env or Railway environment to persist sessions across "
+        "restarts and deploys.\n",
+        file=sys.stderr,
+    )
 ALGORITHM   = "HS256"
 TOKEN_EXPIRE_DAYS = 30
 
