@@ -37,3 +37,20 @@ class BatchResponse(BaseModel):
     status: str
     jd_preview: str
     results: List[BatchResultItem]
+
+
+class JobCreatedResponse(BaseModel):
+    job_id: str
+    status: str  # "pending"
+    total: int
+
+
+class JobStatusResponse(BaseModel):
+    job_id: str
+    status: str  # "pending" | "processing" | "complete" | "error"
+    total: int
+    processed: int
+    jd_preview: str | None = None
+    results: List[BatchResultItem] | None = None
+    error: str | None = None
+    created_at: str

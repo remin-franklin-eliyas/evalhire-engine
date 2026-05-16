@@ -50,3 +50,13 @@ def login(body: LoginRequest, db: Session = Depends(get_db)):
 def me(current_user: User = Depends(get_current_user)):
     return {"id": current_user.id, "email": current_user.email, "created_at": current_user.created_at}
 
+
+@router.delete("/me", status_code=204)
+def delete_account(
+    current_user: User = Depends(get_current_user),
+    db: Session = Depends(get_db),
+):
+    """Permanently delete the authenticated user and all their data (GDPR right to erasure)."""
+    db.delete(current_user)  # cascade="all, delete-orphan" removes EvaluationRecords too
+    db.commit()
+

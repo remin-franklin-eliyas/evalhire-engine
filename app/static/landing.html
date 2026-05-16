@@ -348,7 +348,7 @@
       <div class="step-num">Step 02</div>
       <div class="step-icon">⚡</div>
       <h3>LLM scores the candidate</h3>
-      <p>Llama-3.3-70B produces a 0–100 score, a 3-point critique, and a direct hire/pass verdict — calibrated to your persona.</p>
+      <p>Your chosen model — GitHub Models (default), OpenAI, or Anthropic — produces a 0–100 score, a 3-point critique, and a hire/pass verdict calibrated to your persona.</p>
     </div>
     <div class="step">
       <div class="step-num">Step 03</div>
@@ -367,7 +367,7 @@
     <div class="feature f-purple"><div class="feature-icon">🎭</div><h3>Configurable persona</h3><p>Evaluate through the eyes of a Founding CTO, VP Sales, Design Lead, or write your own. The LLM adapts its rubric accordingly.</p></div>
     <div class="feature f-blue"><div class="feature-icon">📇</div><h3>Contact info extracted</h3><p>Email, phone, and LinkedIn parsed directly from the PDF so you can reach the right candidate immediately.</p></div>
     <div class="feature f-green"><div class="feature-icon">📋</div><h3>Full screening history</h3><p>Every evaluation saved to your account. Compare candidates, pick up where you left off.</p></div>
-    <div class="feature f-orange"><div class="feature-icon">📦</div><h3>Batch mode</h3><p>Upload 10 CVs at once. Get them all ranked in one request. Screen an entire applicant pool in under a minute.</p></div>
+    <div class="feature f-orange"><div class="feature-icon">📦</div><h3>Async batch mode</h3><p>Submit up to 50 CVs at once. Jobs run asynchronously — get a result link immediately, results are ready when the LLM finishes. No hanging requests.</p></div>
     <div class="feature f-pink"><div class="feature-icon">🔌</div><h3>REST API</h3><p>Headless access via X-API-Key. Plug it into your ATS, Notion database, or any internal tool.</p></div>
   </div>
 </div>
@@ -415,9 +415,9 @@
 <div class="cta-wrap">
   <div class="cta-box">
     <h2>Ready to screen smarter?</h2>
-    <p>Free tier included — 2 evaluations/month, no credit card required.</p>
+    <p>Free tier included — 20 evaluations/month, no credit card required.</p>
     <a href="/app" class="btn-primary" style="font-size:0.92rem;padding:14px 30px">Start screening CVs →</a>
-    <div class="cta-note">Open source · Hosted on Railway · GitHub Models inference</div>
+    <div class="cta-note">Open source · Hosted on Railway · GitHub Models · OpenAI · Anthropic</div>
   </div>
 </div>
 
@@ -445,13 +445,13 @@
       </ul>
       <p><strong>Third-party services</strong></p>
       <ul>
-        <li>CV text and job description are sent to <strong>GitHub Models</strong> (Microsoft Azure inference) for evaluation. Subject to <a href="https://docs.github.com/en/site-policy/privacy-policies/github-privacy-statement" target="_blank" rel="noopener">GitHub's privacy policy</a>.</li>
+        <li>CV text and job description are sent to your configured LLM provider for evaluation — <strong>GitHub Models</strong> (default), <strong>OpenAI</strong>, or <strong>Anthropic</strong>, depending on the <code>MODEL_PROVIDER</code> setting. Subject to the privacy policy of the active provider.</li>
         <li>The application is hosted on <strong>Railway.app</strong>.</li>
       </ul>
       <p><strong>Candidate data</strong></p>
       <p>You are responsible for ensuring you have the right to upload and process candidate CVs under applicable data protection law (e.g. GDPR).</p>
       <p><strong>Data retention</strong></p>
-      <p>Evaluation history is retained until you delete your account. Contact us to request deletion.</p>
+      <p>Evaluation history is retained until you erase it. Use <strong>History → Purge history</strong> to delete all evaluation records while keeping your account, or <strong>Account → Delete account</strong> to permanently erase all your data including your account. Both actions are irreversible.</p>
       <button class="modal-close" onclick="document.getElementById('privacy-modal').classList.remove('open')">Close</button>
     </div>
   </div>

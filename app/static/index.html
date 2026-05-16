@@ -484,7 +484,7 @@
         <div class="file-drop" id="drop-batch" onclick="document.getElementById('file-batch').click()">
           <div class="icon">📂</div>
           <strong>Click or drag PDFs here</strong>
-          <p>Multiple files supported · Max 10 MB each</p>
+          <p>Multiple files supported · 10 MB per file · 50 MB total</p>
           <input type="file" id="file-batch" accept=".pdf" multiple style="display:none" />
         </div>
         <div id="batch-file-names">No files selected</div>
@@ -500,14 +500,21 @@
       </div>
       <button type="submit" id="btn-batch">Evaluate All</button>
     </form>
-    <div class="spinner" id="spinner-batch">Evaluating… this may take a moment for multiple CVs</div>
+    <div class="spinner" id="spinner-batch">Uploading files…</div>
     <div id="batch-result"></div>
   </div>
 
   <!-- ── History ────────────────────────────────────────────── -->
   <div id="panel-history">
+    <div id="history-header" style="display:none;justify-content:space-between;align-items:center;margin-bottom:14px">
+      <span style="font-size:0.78rem;color:#555">Recent evaluations</span>
+      <button onclick="confirmPurge()" style="background:none;border:none;color:#555;font-size:0.78rem;cursor:pointer;padding:4px 8px;border-radius:4px;transition:color 0.15s" onmouseover="this.style.color='#f87171'" onmouseout="this.style.color='#555'">🗑 Purge history</button>
+    </div>
     <div id="history-content">
       <div class="history-empty">Sign in to view your evaluation history.</div>
+    </div>
+    <div id="history-load-more" style="display:none;text-align:center;padding-top:12px">
+      <button onclick="loadMoreHistory()" style="background:none;border:1px solid #252525;color:#555;font-size:0.8rem;padding:8px 20px;border-radius:6px;cursor:pointer;transition:all 0.15s" onmouseover="this.style.borderColor='#404040';this.style.color='#aaa'" onmouseout="this.style.borderColor='#252525';this.style.color='#555'">Load more</button>
     </div>
   </div>
 
@@ -516,8 +523,8 @@
 <script>
   // ── Auth state ─────────────────────────────────────────────
   let _authToken = localStorage.getItem('evalhire_token') || null;
-  let _authEmail = localStorage.getItem('evalhire_email') || null;
-
+  let _authEmail = localStorage.getItem('evalhire_email') || null;  let _historySkip = 0;
+  const _historyPageSize = 20;
   function saveAuth(token, email) {
     _authToken = token; _authEmail = email;
     localStorage.setItem('evalhire_token', token);
@@ -539,6 +546,8 @@
         <div class="account-pill">
           <span class="user-email">${_authEmail}</span>
           <button onclick="signOut()">Sign out</button>
+          <span style="color:#2a2a2a;user-select:none">·</span>
+          <button onclick="deleteAccount()" style="color:#7f1d1d" onmouseover="this.style.color='#f87171'" onmouseout="this.style.color='#7f1d1d'">Delete account</button>
         </div>`;
     } else {
       area.innerHTML = `<button id="btn-signin" onclick="openAuthModal()">Sign in</button>`;
@@ -664,25 +673,43 @@
   }
 
   // ── History ────────────────────────────────────────────────
-  async function loadHistory() {
-    const container = document.getElementById('history-content');
+  async function loadHistory(reset = true) {
+    const container  = document.getElementById('history-content');
+    const loadMoreEl = document.getElementById('history-load-more');
+    const headerEl   = document.getElementById('history-header');
+
     if (!_authToken) {
       container.innerHTML = '<div class="history-empty">Sign in to view your evaluation history. <a href="#" onclick="openAuthModal(); return false">Sign in →</a></div>';
+      loadMoreEl.style.display = 'none'; headerEl.style.display = 'none';
       return;
     }
-    container.innerHTML = '<div class="history-empty">Loading…</div>';
+
+    if (reset) {
+      _historySkip = 0;
+      container.innerHTML = '<div class="history-empty">Loading…</div>';
+      loadMoreEl.style.display = 'none'; headerEl.style.display = 'none';
+    }
+
     try {
-      const res = await fetch(`${getBase()}/history`, {
+      const res = await fetch(`${getBase()}/history?skip=${_historySkip}&limit=${_historyPageSize}`, {
         headers: { 'Authorization': `Bearer ${_authToken}` },
       });
-      if (res.status === 401) { clearAuth(); container.innerHTML = '<div class="history-empty">Session expired. <a href="#" onclick="openAuthModal(); return false">Sign in again →</a></div>'; return; }
+      if (res.status === 401) {
+        clearAuth();
+        container.innerHTML = '<div class="history-empty">Session expired. <a href="#" onclick="openAuthModal(); return false">Sign in again →</a></div>';
+        return;
+      }
       const items = await res.json();
-      if (!items.length) {
+
+      if (reset && items.length === 0) {
         container.innerHTML = '<div class="history-empty">No evaluations yet. Run your first CV through the Single or Batch tab.</div>';
         return;
       }
-      container.innerHTML = items.map(r => {
-        const cls = r.score >= 70 ? 'score-high' : r.score >= 45 ? 'score-mid' : 'score-low';
+
+      if (reset) { container.innerHTML = ''; headerEl.style.display = 'flex'; }
+
+      container.innerHTML += items.map(r => {
+        const cls  = r.score >= 70 ? 'score-high' : r.score >= 45 ? 'score-mid' : 'score-low';
         const date = new Date(r.created_at).toLocaleDateString('en-GB', { day: 'numeric', month: 'short', year: 'numeric', hour: '2-digit', minute: '2-digit' });
         const critique = r.critique.map(c => `<li>${c}</li>`).join('');
         const contactLinks = [
@@ -706,9 +733,41 @@
             </div>
           </div>`;
       }).join('');
+
+      _historySkip += items.length;
+      loadMoreEl.style.display = items.length === _historyPageSize ? 'block' : 'none';
+
     } catch (err) {
-      container.innerHTML = `<div class="history-empty">Failed to load history: ${err.message}</div>`;
+      if (reset) container.innerHTML = `<div class="history-empty">Failed to load history: ${err.message}</div>`;
     }
+  }
+
+  function loadMoreHistory() { loadHistory(false); }
+
+  async function confirmPurge() {
+    if (!_authToken) return;
+    if (!confirm('Delete all evaluation history? This cannot be undone.')) return;
+    try {
+      const res = await fetch(`${getBase()}/history/purge`, {
+        method: 'POST',
+        headers: { 'Authorization': `Bearer ${_authToken}` },
+      });
+      if (res.ok) { loadHistory(true); }
+      else { const j = await res.json(); alert(j.detail ?? 'Failed to purge history.'); }
+    } catch (err) { alert(`Network error: ${err.message}`); }
+  }
+
+  async function deleteAccount() {
+    if (!_authToken) return;
+    if (!confirm('Permanently delete your account and all data? This cannot be undone.')) return;
+    try {
+      const res = await fetch(`${getBase()}/auth/me`, {
+        method: 'DELETE',
+        headers: { 'Authorization': `Bearer ${_authToken}` },
+      });
+      if (res.ok) { clearAuth(); }
+      else { const j = await res.json(); alert(j.detail ?? 'Failed to delete account.'); }
+    } catch (err) { alert(`Network error: ${err.message}`); }
   }
 
   function toggleHistoryDetail(id) {
@@ -821,6 +880,7 @@
     const btn = document.getElementById('btn-batch');
     const spinner = document.getElementById('spinner-batch');
     btn.disabled = true; spinner.style.display = 'block'; result.innerHTML = '';
+    spinner.textContent = 'Uploading files…';
 
     const fd = new FormData();
     Array.from(files).forEach(f => fd.append('files', f));
@@ -829,10 +889,26 @@
     if (persona) fd.append('persona', persona);
 
     try {
-      const res = await fetch(`${getBase()}/evaluate/batch`, { method: 'POST', headers: getHeaders(), body: fd });
+      // Step 1 — submit the job; server returns 202 + job_id immediately
+      const res  = await fetch(`${getBase()}/evaluate/batch`, { method: 'POST', headers: getHeaders(), body: fd });
       const json = await res.json();
-      if (!res.ok) renderError(json.detail ?? `Error ${res.status}`, result);
-      else renderBatch(json, result);
+      if (!res.ok) { renderError(json.detail ?? `Error ${res.status}`, result); return; }
+
+      // Step 2 — poll GET /jobs/{job_id} until status is complete or error
+      const jobId = json.job_id;
+      let job = json;
+      while (job.status !== 'complete' && job.status !== 'error') {
+        await new Promise(r => setTimeout(r, 1500));
+        const pollRes = await fetch(`${getBase()}/jobs/${jobId}`, { headers: getHeaders() });
+        job = await pollRes.json();
+        const done  = job.processed ?? 0;
+        const total = job.total ?? files.length;
+        spinner.textContent = `Evaluating candidates — ${done} of ${total} done…`;
+      }
+
+      if (job.status === 'error') renderError(job.error ?? 'Batch job failed.', result);
+      else renderBatch(job, result);
+
     } catch (err) {
       renderError(`Network error: ${err.message}`, result);
     } finally {

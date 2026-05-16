@@ -80,16 +80,24 @@ def test_batch_evaluate_response_shape():
             ]
             data = {"jd": "Looking for a Lead AI Engineer."}
             response = client.post("/evaluate/batch", files=files, data=data)
-    assert response.status_code == 200
+    assert response.status_code == 202
     body = response.json()
-    assert body["status"] == "success"
-    assert len(body["results"]) == 2
-    for item in body["results"]:
+    assert body["status"] == "pending"
+    assert body["total"] == 2
+    job_id = body["job_id"]
+
+    # BackgroundTasks complete synchronously inside Starlette's TestClient
+    result = client.get(f"/jobs/{job_id}")
+    assert result.status_code == 200
+    job = result.json()
+    assert job["status"] == "complete"
+    assert len(job["results"]) == 2
+    for item in job["results"]:
         assert "filename" in item
         assert isinstance(item["score"], int)
         assert isinstance(item["verdict"], str)
     # Results should be sorted descending by score
-    scores = [r["score"] for r in body["results"]]
+    scores = [r["score"] for r in job["results"]]
     assert scores == sorted(scores, reverse=True)
 
 
@@ -102,8 +110,12 @@ def test_batch_evaluate_skips_non_pdf():
         with patch("app.main.extract_text_from_pdf", return_value="Candidate CV text"):
             data = {"jd": "Looking for an engineer."}
             response = client.post("/evaluate/batch", files=files, data=data)
-    assert response.status_code == 200
-    results = response.json()["results"]
+    assert response.status_code == 202
+    job_id = response.json()["job_id"]
+
+    result = client.get(f"/jobs/{job_id}")
+    assert result.json()["status"] == "complete"
+    results = result.json()["results"]
     skipped = [r for r in results if r.get("error")]
     assert len(skipped) == 1
     assert skipped[0]["filename"] == "cv.txt"

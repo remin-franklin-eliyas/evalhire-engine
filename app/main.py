@@ -1,23 +1,33 @@
 import json
 import io
 import os
+import uuid
+import threading
 
-from fastapi import FastAPI, UploadFile, File, Form, HTTPException, Depends
+from fastapi import FastAPI, UploadFile, File, Form, HTTPException, Depends, BackgroundTasks
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.staticfiles import StaticFiles
-from fastapi.responses import FileResponse
+from fastapi.responses import FileResponse, JSONResponse
 from sqlalchemy.orm import Session
 from typing import List
 
 from app.utils.extractor import extract_text_from_pdf, extract_contact_info
 from app.engine.logic import evaluate_cv, DEFAULT_PERSONA
-from app.models import EvaluationResult, EvaluationData, EvaluationResponse, BatchResultItem, BatchResponse
+from app.models import (
+    EvaluationResult, EvaluationData, EvaluationResponse,
+    BatchResultItem, BatchResponse, JobCreatedResponse, JobStatusResponse,
+)
 from app.auth import verify_api_key, get_optional_user
 from app.database import engine, get_db
 from app.routers import auth_routes, history_routes
 
-MAX_UPLOAD_BYTES = 10 * 1024 * 1024  # 10 MB
-FREE_TIER_MONTHLY_LIMIT = 2
+MAX_UPLOAD_BYTES = 10 * 1024 * 1024          # 10 MB per file
+MAX_AGGREGATE_BATCH_BYTES = 50 * 1024 * 1024  # 50 MB total across all files in a batch
+FREE_TIER_MONTHLY_LIMIT = 20
+
+# ── In-memory job store for async batch processing ────────────────────────────
+_jobs: dict = {}
+_jobs_lock = threading.Lock()
 
 # ── Create DB tables on startup ───────────────────────────────────────────────
 from app.db_models import User, EvaluationRecord  # noqa: F401 — registers models with Base
@@ -66,7 +76,7 @@ app = FastAPI(title="EvalHire Engine")
 app.add_middleware(
     CORSMiddleware,
     allow_origins=["*"],
-    allow_methods=["GET", "POST"],
+    allow_methods=["GET", "POST", "DELETE"],
     allow_headers=["*"],
 )
 
@@ -149,8 +159,90 @@ async def evaluate_candidate(
     )
 
 
-@app.post("/evaluate/batch", response_model=BatchResponse)
+def _process_batch_job(
+    job_id: str,
+    files_data: list,
+    jd: str,
+    persona: str,
+    user_id: int | None,
+) -> None:
+    """Background task: evaluate each CV and write results to the job store."""
+    from app.database import SessionLocal
+
+    with _jobs_lock:
+        _jobs[job_id]["status"] = "processing"
+
+    results = []
+    db = SessionLocal()
+    try:
+        for file_data in files_data:
+            filename = file_data["filename"]
+            content = file_data["content"]
+
+            if file_data.get("oversized"):
+                results.append({"filename": filename, "score": 0, "verdict": "Skipped",
+                                 "error": "File too large. Maximum size is 10 MB.", "contact": None})
+            elif file_data["content_type"] != "application/pdf":
+                results.append({"filename": filename, "score": 0, "verdict": "Skipped",
+                                 "error": "Not a PDF file.", "contact": None})
+            else:
+                extracted_text = extract_text_from_pdf(io.BytesIO(content))
+                if "Error" in extracted_text:
+                    results.append({"filename": filename, "score": 0, "verdict": "Skipped",
+                                     "error": "Failed to extract text from PDF.", "contact": None})
+                else:
+                    try:
+                        raw = evaluate_cv(extracted_text, jd, persona=persona)
+                        analysis = EvaluationResult(**raw)
+                        contact = extract_contact_info(extracted_text)
+                        results.append({
+                            "filename": filename,
+                            "score": analysis.score,
+                            "verdict": analysis.verdict,
+                            "error": None,
+                            "contact": contact.model_dump() if contact else None,
+                        })
+                        if user_id is not None:
+                            db.add(EvaluationRecord(
+                                user_id=user_id,
+                                filename=filename,
+                                jd_preview=jd[:300],
+                                score=analysis.score,
+                                verdict=analysis.verdict,
+                                critique_json=json.dumps(analysis.critique),
+                                persona_used=persona,
+                                contact_email=contact.email if contact else None,
+                                contact_phone=contact.phone if contact else None,
+                                contact_linkedin=contact.linkedin if contact else None,
+                            ))
+                    except Exception as exc:
+                        results.append({"filename": filename, "score": 0,
+                                         "verdict": "Evaluation failed", "error": str(exc),
+                                         "contact": None})
+
+            with _jobs_lock:
+                _jobs[job_id]["processed"] += 1
+
+        results.sort(key=lambda r: r["score"], reverse=True)
+        if user_id is not None:
+            db.commit()
+
+        with _jobs_lock:
+            _jobs[job_id]["status"] = "complete"
+            _jobs[job_id]["results"] = results
+
+    except Exception as exc:
+        db.rollback()
+        with _jobs_lock:
+            _jobs[job_id]["status"] = "error"
+            _jobs[job_id]["error"] = str(exc)
+    finally:
+        db.close()
+
+
+@app.post("/evaluate/batch", response_model=JobCreatedResponse, status_code=202)
 async def evaluate_batch(
+    background_tasks: BackgroundTasks,
     files: List[UploadFile] = File(...),
     jd: str = Form(...),
     persona: str = Form(default=""),
@@ -160,81 +252,58 @@ async def evaluate_batch(
 ):
     if not files:
         raise HTTPException(status_code=400, detail="At least one file is required.")
+    if not jd.strip():
+        raise HTTPException(status_code=400, detail="Job description is required.")
 
-    pdf_count = sum(1 for f in files if f.content_type == "application/pdf")
+    # Read all file bytes eagerly — UploadFile objects are not safe to use after response is sent
+    files_data = []
+    total_bytes = 0
+    for upload in files:
+        content = await upload.read()
+        total_bytes += len(content)
+        if total_bytes > MAX_AGGREGATE_BATCH_BYTES:
+            raise HTTPException(
+                status_code=413,
+                detail=f"Total upload size exceeds {MAX_AGGREGATE_BATCH_BYTES // (1024 * 1024)} MB.",
+            )
+        files_data.append({
+            "filename": upload.filename,
+            "content": content,
+            "content_type": upload.content_type,
+            "oversized": len(content) > MAX_UPLOAD_BYTES,
+        })
+
+    # Free tier check runs synchronously before the job is accepted
+    pdf_count = sum(
+        1 for f in files_data
+        if f["content_type"] == "application/pdf" and not f["oversized"]
+    )
     _check_free_tier(current_user, db, slots_needed=pdf_count)
 
+    job_id = str(uuid.uuid4())
+    with _jobs_lock:
+        _jobs[job_id] = {
+            "status": "pending",
+            "created_at": datetime.now(timezone.utc).isoformat(),
+            "total": len(files_data),
+            "processed": 0,
+            "jd_preview": jd[:200],
+            "results": None,
+            "error": None,
+        }
+
     active_persona = persona.strip() or DEFAULT_PERSONA
-    results = []
-    for upload in files:
-        if upload.content_type != "application/pdf":
-            results.append(BatchResultItem(
-                filename=upload.filename,
-                score=0,
-                verdict="Skipped",
-                error="Not a PDF file.",
-            ))
-            continue
-
-        content = await upload.read()
-        if len(content) > MAX_UPLOAD_BYTES:
-            results.append(BatchResultItem(
-                filename=upload.filename,
-                score=0,
-                verdict="Skipped",
-                error="File too large. Maximum size is 10 MB.",
-            ))
-            continue
-
-        extracted_text = extract_text_from_pdf(io.BytesIO(content))
-        if "Error" in extracted_text:
-            results.append(BatchResultItem(
-                filename=upload.filename,
-                score=0,
-                verdict="Skipped",
-                error="Failed to extract text from PDF.",
-            ))
-            continue
-
-        try:
-            raw = evaluate_cv(extracted_text, jd, persona=active_persona)
-            analysis = EvaluationResult(**raw)
-            contact = extract_contact_info(extracted_text)
-            results.append(BatchResultItem(
-                filename=upload.filename,
-                score=analysis.score,
-                verdict=analysis.verdict,
-                contact=contact,
-            ))
-            if current_user:
-                record = EvaluationRecord(
-                    user_id=current_user.id,
-                    filename=upload.filename,
-                    jd_preview=jd[:300],
-                    score=analysis.score,
-                    verdict=analysis.verdict,
-                    critique_json=json.dumps(analysis.critique),
-                    persona_used=active_persona,
-                    contact_email=contact.email,
-                    contact_phone=contact.phone,
-                    contact_linkedin=contact.linkedin,
-                )
-                db.add(record)
-        except Exception as e:
-            results.append(BatchResultItem(
-                filename=upload.filename,
-                score=0,
-                verdict="Evaluation failed",
-                error=str(e),
-            ))
-
-    results.sort(key=lambda r: r.score, reverse=True)
-
-    if current_user:
-        db.commit()
-
-    return BatchResponse(
-        status="success",
-        jd_preview=jd[:200],
-        results=results,
+    background_tasks.add_task(
+        _process_batch_job, job_id, files_data, jd, active_persona,
+        current_user.id if current_user else None,
     )
+    return JobCreatedResponse(job_id=job_id, status="pending", total=len(files_data))
+
+
+@app.get("/jobs/{job_id}", response_model=JobStatusResponse)
+def get_job(job_id: str):
+    with _jobs_lock:
+        job = _jobs.get(job_id)
+    if job is None:
+        raise HTTPException(status_code=404, detail="Job not found.")
+    return JobStatusResponse(job_id=job_id, **job)

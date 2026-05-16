@@ -26,13 +26,19 @@ class HistoryItem(BaseModel):
 
 
 @router.get("", response_model=list[HistoryItem])
-def get_history(current_user: User = Depends(get_current_user),
-                db: Session = Depends(get_db)):
+def get_history(
+    skip: int = 0,
+    limit: int = 50,
+    current_user: User = Depends(get_current_user),
+    db: Session = Depends(get_db),
+):
+    limit = min(limit, 200)  # hard cap — no single request returns more than 200
     records = (
         db.query(EvaluationRecord)
         .filter(EvaluationRecord.user_id == current_user.id)
         .order_by(EvaluationRecord.created_at.desc())
-        .limit(200)
+        .offset(skip)
+        .limit(limit)
         .all()
     )
     return [
@@ -51,3 +57,15 @@ def get_history(current_user: User = Depends(get_current_user),
         )
         for r in records
     ]
+
+
+@router.post("/purge", status_code=204)
+def purge_history(
+    current_user: User = Depends(get_current_user),
+    db: Session = Depends(get_db),
+):
+    """Delete all evaluation history for the current user (GDPR right to erasure)."""
+    db.query(EvaluationRecord).filter(
+        EvaluationRecord.user_id == current_user.id
+    ).delete(synchronize_session=False)
+    db.commit()

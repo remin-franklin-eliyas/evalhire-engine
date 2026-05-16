@@ -222,3 +222,89 @@ def test_batch_free_tier_blocks_when_pdf_count_exceeds_quota(db_client):
             )
     assert res.status_code == 429
     assert "Free tier limit reached" in res.json()["detail"]
+
+
+# ── History pagination ─────────────────────────────────────────────────────────
+
+def test_history_pagination_default(db_client):
+    """GET /history returns at most 50 records by default."""
+    token = _token(db_client)
+    # defaults: skip=0, limit=50 — empty DB returns []
+    res = db_client.get("/history", headers=_auth_headers(token))
+    assert res.status_code == 200
+    assert isinstance(res.json(), list)
+
+
+def test_history_pagination_custom_limit(db_client):
+    """limit= and skip= query params are respected."""
+    token = _token(db_client)
+    with patch("app.main.evaluate_cv", return_value=MOCK_ANALYSIS):
+        with patch("app.main.extract_text_from_pdf", return_value="CV text"):
+            for _ in range(3):
+                db_client.post(
+                    "/evaluate",
+                    files={"file": ("cv.pdf", b"%PDF-1.4", "application/pdf")},
+                    data={"jd": "Role."},
+                    headers=_auth_headers(token),
+                )
+    # limit=1 returns exactly 1
+    res = db_client.get("/history?limit=1", headers=_auth_headers(token))
+    assert res.status_code == 200
+    assert len(res.json()) == 1
+
+    # skip=2 skips the 2 newest, returns the oldest 1
+    res = db_client.get("/history?skip=2&limit=10", headers=_auth_headers(token))
+    assert res.status_code == 200
+    assert len(res.json()) == 1
+
+
+# ── GDPR endpoints ────────────────────────────────────────────────────────────
+
+def test_history_purge_clears_records(db_client):
+    token = _token(db_client)
+    with patch("app.main.evaluate_cv", return_value=MOCK_ANALYSIS):
+        with patch("app.main.extract_text_from_pdf", return_value="CV text"):
+            db_client.post(
+                "/evaluate",
+                files={"file": ("cv.pdf", b"%PDF-1.4", "application/pdf")},
+                data={"jd": "Engineer."},
+                headers=_auth_headers(token),
+            )
+    # History should have 1 item
+    assert len(db_client.get("/history", headers=_auth_headers(token)).json()) == 1
+
+    res = db_client.post("/history/purge", headers=_auth_headers(token))
+    assert res.status_code == 204
+
+    # History should now be empty
+    assert db_client.get("/history", headers=_auth_headers(token)).json() == []
+
+
+def test_history_purge_requires_auth(db_client):
+    res = db_client.post("/history/purge")
+    assert res.status_code == 401
+
+
+def test_delete_account_removes_user(db_client):
+    token = _token(db_client)
+    # Add an evaluation so we can verify cascade delete
+    with patch("app.main.evaluate_cv", return_value=MOCK_ANALYSIS):
+        with patch("app.main.extract_text_from_pdf", return_value="CV text"):
+            db_client.post(
+                "/evaluate",
+                files={"file": ("cv.pdf", b"%PDF-1.4", "application/pdf")},
+                data={"jd": "Engineer."},
+                headers=_auth_headers(token),
+            )
+
+    res = db_client.delete("/auth/me", headers=_auth_headers(token))
+    assert res.status_code == 204
+
+    # Token should now be invalid — the user no longer exists
+    res = db_client.get("/auth/me", headers=_auth_headers(token))
+    assert res.status_code == 401
+
+
+def test_delete_account_requires_auth(db_client):
+    res = db_client.delete("/auth/me")
+    assert res.status_code == 401
